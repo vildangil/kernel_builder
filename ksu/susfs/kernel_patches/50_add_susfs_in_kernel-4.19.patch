@@ -324,18 +324,19 @@ index d7f4c149bd98..a97d28ae9778 100644
  	}
  
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 0e25713d09fa..5f873481fc67 100644
+index 0e25713d09fa..ac24d82b1edf 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -980,6 +980,15 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+@@ -980,6 +980,16 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
  	mnt->mnt.mnt_sb = root->d_sb;
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
 +
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	// here we reorder the mounts that are added after copy_mnt_ns();
-+	if (mnt->mnt.mnt_sb->s_user_ns->android_kabi_reserved1 & 8) {
-+		mnt->mnt.android_kabi_reserved1 = mnt->mnt.mnt_sb->s_user_ns->android_kabi_reserved2++;
++	// make sure it is zygote process
++	if (likely(current->android_kabi_reserved3 & 1)) {
++		mnt->mnt.android_kabi_reserved1 = current->android_kabi_reserved4++;
 +	}
 +	// Seems no need to reorder the mnt group id for mounts after copy_mnt_ns();
 +#endif
@@ -343,79 +344,30 @@ index 0e25713d09fa..5f873481fc67 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
  	unlock_mount_hash();
-@@ -1061,6 +1070,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1061,6 +1071,22 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
 +
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	// here we reorder the mounts that are cloned after copy_mnt_ns();
-+	if (mnt->mnt.mnt_sb->s_user_ns->android_kabi_reserved1 & 8) {
-+			mnt->mnt.android_kabi_reserved1 = mnt->mnt.mnt_sb->s_user_ns->android_kabi_reserved2++;
++	// here we reorder the mounts that are added after copy_mnt_ns();
++	// make sure it is zygote process
++	if (likely(current->android_kabi_reserved3 & 1)) {
++		mnt->mnt.android_kabi_reserved1 = current->android_kabi_reserved4++;
 +	}
 +	// Seems no need to reorder the mnt group id for mounts after copy_mnt_ns();
++
++	// Make all our sus mounts to be cloned private, so that propagation won't happen when they are being umounted,
++	// and let try_umount() to decide what to umount for matched process.
++	if (unlikely(mnt->mnt.mnt_root->d_inode->i_state & 33554432)) {
++		flag &= (~CL_SLAVE | ~CL_SHARED_TO_SLAVE | ~CL_MAKE_SHARED | CL_PRIVATE);
++	}
 +#endif
 +
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1652,6 +1670,40 @@ static inline bool may_mandlock(void)
- }
- #endif
- 
-+static int can_umount(const struct path *path, int flags)
-+{
-+    struct mount *mnt = real_mount(path->mnt);
-+
-+    if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
-+        return -EINVAL;
-+    if (!may_mount())
-+        return -EPERM;
-+    if (path->dentry != path->mnt->mnt_root)
-+        return -EINVAL;
-+    if (!check_mnt(mnt))
-+        return -EINVAL;
-+    if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
-+        return -EINVAL;
-+    if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
-+        return -EPERM;
-+    return 0;
-+}
-+
-+int path_umount(struct path *path, int flags)
-+{
-+    struct mount *mnt = real_mount(path->mnt);
-+    int ret;
-+
-+    ret = can_umount(path, flags);
-+    if (!ret)
-+        ret = do_umount(mnt, flags);
-+
-+    /* we mustn't call path_put() as that would clear mnt_expiry_mark */
-+    dput(path->dentry);
-+    mntput_no_expire(mnt);
-+    return ret;
-+}
-+
- /*
-  * Now umount can handle mount points as well as block devices.
-  * This is important for filesystems which use unnamed block devices.
-@@ -2564,6 +2616,14 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
- 	}
- 
- 	err = do_add_mount(real_mount(mnt), path, mnt_flags);
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (!err) {
-+		if (path->dentry && path->dentry->d_inode && unlikely(path->dentry->d_inode->i_state & 33554432)) {
-+			real_mount(mnt)->mnt.mnt_root->d_inode->i_state |= 33554432;
-+		}
-+	}
-+#endif
-+
- 	if (err)
- 		mntput(mnt);
- 	return err;
-@@ -2958,6 +3018,11 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -2958,6 +3014,11 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -427,20 +379,20 @@ index 0e25713d09fa..5f873481fc67 100644
  
  	BUG_ON(!ns);
  
-@@ -3013,6 +3078,36 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3013,6 +3074,36 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
++
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	// current->android_kabi_reserved3 -> check if current process is zygote 
++	// current->android_kabi_reserved4 -> to record last valid fake mnt id to zygote pid
 +	// q->mnt.android_kabi_reserved1 -> fake mnt id
 +	// q->mnt.android_kabi_reserved2 -> fake mnt group id (peer id)
-+	// new_ns->user_ns->android_kabi_reserved1 -> mnt ns flag for sus_mount
-+	// new_ns->user_ns->android_kabi_reserved2 -> to record last valid fake mnt id,
-+	//     for the use of app process adding/cloning new mounts after its namespace is cloned by zygote
 +
 +	// Here We are only interested in processes of which original mnt namespace belongs to zygote 
 +	// Also we just make use of existing 'p' and 'q' mount pointer, no need to delcare extra mount pointer
-+	if (likely(ns->user_ns->android_kabi_reserved1 & 1)) {
++	if (likely(current->android_kabi_reserved3 & 1)) {
 +		first_entry_mnt_id = list_first_entry(&new_ns->list, struct mount, mnt_list)->mnt_id;
 +		list_for_each_entry(q, &new_ns->list, mnt_list) {
 +			if (unlikely(q->mnt.mnt_root->d_inode->i_state & 33554432))
@@ -456,10 +408,10 @@ index 0e25713d09fa..5f873481fc67 100644
 +			}
 +		}
 +	}
-+	// lastly we set the flag NS_IS_COPY_MNT_NS_DONE and assign the last fake mnt id to
-+	//     new_ns->user_ns->android_kabi_reserved2 for later use
-+	new_ns->user_ns->android_kabi_reserved1 |= 8;
-+	new_ns->user_ns->android_kabi_reserved2 = first_entry_mnt_id;
++	// Assign the last fake mnt_id to current->android_kabi_reserved4 for later use.
++	// should be fine here assuming zygote is forking/unsharing app in one single thread.
++	// Or should we put a lock here?
++	current->android_kabi_reserved4 = first_entry_mnt_id;
 +#endif
  	namespace_unlock();
  
@@ -721,6 +673,21 @@ index 29786598c2b5..769d446e0c56 100644
 +#endif
  	return error;
  }
+ 
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index faf5a0e2d7cc..9f50a4e60d36 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -1500,6 +1500,10 @@ struct task_struct {
+ 	ANDROID_KABI_RESERVE(5);
+ 	ANDROID_KABI_RESERVE(6);
+ #else
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	u64 android_kabi_reserved3;
++	u64 android_kabi_reserved4;
++#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+ 	struct mutex			futex_exit_mutex;
+ #endif
  
 diff --git a/kernel/sys.c b/kernel/sys.c
 index 909045dc07cd..81aaff32bc1e 100644
