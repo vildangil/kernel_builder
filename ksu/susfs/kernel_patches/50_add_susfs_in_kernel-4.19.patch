@@ -776,7 +776,7 @@ index 1a85f75b19e0..0a5e5a45cc2f 100644
  
  	err = vfs_statfs(&path, buf);
 diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
-index fa762c5fbcb2..a1a07aca7b46 100644
+index fa762c5fbcb2..7edd8a122d95 100644
 --- a/fs/proc/cmdline.c
 +++ b/fs/proc/cmdline.c
 @@ -4,8 +4,18 @@
@@ -789,7 +789,7 @@ index fa762c5fbcb2..a1a07aca7b46 100644
 +
  static int cmdline_proc_show(struct seq_file *m, void *v)
  {
-+#ifdef CONFIG_KSU_SUSFS_SPOOF_BOOTCONFIG
++#ifdef CONFIG_KSU_SUSFS_SPOOF_PROC_CMDLINE
 +	if (!susfs_spoof_proc_cmdline(m)) {
 +		seq_putc(m, '\n');
 +		return 0;
