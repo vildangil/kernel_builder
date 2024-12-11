@@ -14,9 +14,6 @@
 #include <linux/fdtable.h>
 #include <linux/statfs.h>
 #include <linux/susfs.h>
-#ifdef CONFIG_KSU_SUSFS_SUS_SU
-#include <linux/sus_su.h>
-#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
 #include "pnode.h"
 #endif
@@ -616,37 +613,37 @@ void susfs_set_log(bool enabled) {
 }
 #endif // #ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
 
-/* spoof_proc_cmdline */
-#ifdef CONFIG_KSU_SUSFS_SPOOF_PROC_CMDLINE
-char *fake_proc_cmdline = NULL;
-int susfs_set_proc_cmdline(char* __user user_fake_proc_cmdline) {
+/* spoof_bootconfig */
+#ifdef CONFIG_KSU_SUSFS_SPOOF_BOOTCONFIG
+char *fake_boot_config = NULL;
+int susfs_set_bootconfig(char* __user user_fake_boot_config) {
 	int res;
 
-	if (!fake_proc_cmdline) {
+	if (!fake_boot_config) {
 		// 4096 is enough I guess
-		fake_proc_cmdline = kmalloc(SUSFS_FAKE_PROC_CMDLINE_SIZE, GFP_KERNEL);
-		if (!fake_proc_cmdline) {
+		fake_boot_config = kmalloc(SUSFS_FAKE_BOOT_CONFIG_SIZE, GFP_KERNEL);
+		if (!fake_boot_config) {
 			SUSFS_LOGE("no enough memory\n");
 			return -ENOMEM;
 		}
 	}
 
 	spin_lock(&susfs_spin_lock);
-	memset(fake_proc_cmdline, 0, SUSFS_FAKE_PROC_CMDLINE_SIZE);
-	res = strncpy_from_user(fake_proc_cmdline, user_fake_proc_cmdline, SUSFS_FAKE_PROC_CMDLINE_SIZE-1);
+	memset(fake_boot_config, 0, SUSFS_FAKE_BOOT_CONFIG_SIZE);
+	res = strncpy_from_user(fake_boot_config, user_fake_boot_config, SUSFS_FAKE_BOOT_CONFIG_SIZE-1);
 	spin_unlock(&susfs_spin_lock);
 
 	if (res > 0) {
-		SUSFS_LOGI("fake_proc_cmdline is set, length of string: %u\n", strlen(fake_proc_cmdline));
+		SUSFS_LOGI("fake_boot_config is set, length of string: %u\n", strlen(fake_boot_config));
 		return 0;
 	}
-	SUSFS_LOGI("failed setting fake_proc_cmdline\n");
+	SUSFS_LOGI("failed setting fake_boot_config\n");
 	return res;
 }
 
-int susfs_spoof_proc_cmdline(struct seq_file *m) {
-	if (fake_proc_cmdline != NULL) {
-		seq_puts(m, fake_proc_cmdline);
+int susfs_spoof_bootconfig(struct seq_file *m) {
+	if (fake_boot_config != NULL) {
+		seq_puts(m, fake_boot_config);
 		return 0;
 	}
 	return 1;
@@ -760,46 +757,48 @@ int susfs_get_sus_su_working_mode(void) {
 
 int susfs_sus_su(struct st_sus_su* __user user_info) {
 	struct st_sus_su info;
+	int last_working_mode = susfs_sus_su_working_mode;
 
 	if (copy_from_user(&info, user_info, sizeof(struct st_sus_su))) {
 		SUSFS_LOGE("failed copying from userspace\n");
 		return 1;
 	}
 
-	if (info.mode == SUS_SU_WITH_OVERLAY) {
-		sus_su_fifo_init(&info.maj_dev_num, info.drv_path);
-		ksu_susfs_enable_sus_su();
-		susfs_sus_su_working_mode = SUS_SU_WITH_OVERLAY;
-		if (info.maj_dev_num < 0) {
-			SUSFS_LOGI("failed to get proper info.maj_dev_num: %d\n", info.maj_dev_num);
+	if (info.mode == SUS_SU_WITH_HOOKS) {
+		if (last_working_mode == SUS_SU_WITH_HOOKS) {
+			SUSFS_LOGE("current sus_su mode is already %d\n", SUS_SU_WITH_HOOKS);
 			return 1;
 		}
-		SUSFS_LOGI("core kprobe hooks for ksu are disabled!\n");
-		SUSFS_LOGI("sus_su driver '%s' is enabled!\n", info.drv_path);
-		if (copy_to_user(user_info, &info, sizeof(info)))
-			SUSFS_LOGE("copy_to_user() failed\n");
-		return 0;
-	} else if (info.mode == SUS_SU_WITH_HOOKS) {
+		if (last_working_mode != SUS_SU_DISABLED) {
+			SUSFS_LOGE("please make sure the current sus_su mode is %d first\n", SUS_SU_DISABLED);
+			return 2;
+		}
 		ksu_susfs_enable_sus_su();
 		susfs_sus_su_working_mode = SUS_SU_WITH_HOOKS;
 		susfs_is_sus_su_hooks_enabled = true;
 		SUSFS_LOGI("core kprobe hooks for ksu are disabled!\n");
 		SUSFS_LOGI("non-kprobe hook sus_su is enabled!\n");
-		SUSFS_LOGI("sus_su mode: SUS_SU_WITH_HOOKS\n");
+		SUSFS_LOGI("sus_su mode: %d\n", SUS_SU_WITH_HOOKS);
 		return 0;
-	} else if (info.mode == 0) {
-		susfs_is_sus_su_hooks_enabled = false;
-		ksu_susfs_disable_sus_su();
-		susfs_sus_su_working_mode = 0;
-		sus_su_fifo_exit(&info.maj_dev_num, info.drv_path);
-		if (info.maj_dev_num != -1) {
-			SUSFS_LOGI("failed to set proper info.maj_dev_num to '-1'\n");
+	} else if (info.mode == SUS_SU_DISABLED) {
+		if (last_working_mode == SUS_SU_DISABLED) {
+			SUSFS_LOGE("current sus_su mode is already %d\n", SUS_SU_DISABLED);
 			return 1;
 		}
-		SUSFS_LOGI("core kprobe hooks for ksu are enabled! sus_su driver '%s' is disabled!\n", info.drv_path);
+		susfs_is_sus_su_hooks_enabled = false;
+		ksu_susfs_disable_sus_su();
+		susfs_sus_su_working_mode = SUS_SU_DISABLED;
+		if (last_working_mode == SUS_SU_WITH_HOOKS) {
+			SUSFS_LOGI("core kprobe hooks for ksu are enabled!\n");
+			goto out;
+		}
+out:
 		if (copy_to_user(user_info, &info, sizeof(info)))
 			SUSFS_LOGE("copy_to_user() failed\n");
 		return 0;
+	} else if (info.mode == SUS_SU_WITH_OVERLAY) {
+		SUSFS_LOGE("sus_su mode %d is deprecated\n", SUS_SU_WITH_OVERLAY);
+		return 1;
 	}
 	return 1;
 }

@@ -1,13 +1,12 @@
 diff --git a/fs/Makefile b/fs/Makefile
-index e4a54c7b71c7..cad6c8d9e4fb 100644
+index e4a54c7b71c7..93dcd73131cc 100644
 --- a/fs/Makefile
 +++ b/fs/Makefile
-@@ -14,6 +14,9 @@ obj-y :=	open.o read_write.o file_table.o super.o \
+@@ -14,6 +14,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
  		pnode.o splice.o sync.o utimes.o d_path.o \
  		stack.o fs_struct.o statfs.o fs_pin.o nsfs.o
  
 +obj-$(CONFIG_KSU_SUSFS) += susfs.o
-+obj-$(CONFIG_KSU_SUSFS_SUS_SU) += sus_su.o
 +
  ifeq ($(CONFIG_BLOCK),y)
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
@@ -395,7 +394,7 @@ index d7f4c149bd98..0ba0bd5f141d 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 0e25713d09fa..bdc09b4b4c69 100644
+index 0e25713d09fa..a545d18a7637 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -31,6 +31,23 @@
@@ -630,7 +629,6 @@ index 0e25713d09fa..bdc09b4b4c69 100644
 +	susfs_try_umount_all(current_uid().val);
 +}
 +#endif
-\ No newline at end of file
 diff --git a/fs/open.c b/fs/open.c
 index 38ff515fbdf1..671348f06d24 100644
 --- a/fs/open.c
