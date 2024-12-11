@@ -1,5 +1,5 @@
 diff --git a/kernel/Kconfig b/kernel/Kconfig
-index 67f177f4..d32d219e 100644
+index 67f177f4..381d2fb1 100644
 --- a/kernel/Kconfig
 +++ b/kernel/Kconfig
 @@ -16,4 +16,139 @@ config KSU_DEBUG
@@ -110,12 +110,12 @@ index 67f177f4..d32d219e 100644
 +      - Automatically hide ksu and susfs symbols from '/proc/kallsyms'.
 +      - Effective on all processes.
 +
-+config KSU_SUSFS_SPOOF_BOOTCONFIG
-+    bool "Enable to spoof /proc/bootconfig"
++config KSU_SUSFS_SPOOF_PROC_CMDLINE
++    bool "Enable to spoof /proc/cmdline"
 +    depends on KSU_SUSFS
 +    default y
 +    help
-+      - Spoof the output of /proc/bootconfig with a user-defined file.
++      - Spoof the output of /proc/cmdline with a user-defined file.
 +      - Effective on all processes.
 +
 +config KSU_SUSFS_OPEN_REDIRECT
