@@ -1,4 +1,4 @@
-priv_env
+*priv_env
 kernel/
 *Clang*/
 *clang*/
