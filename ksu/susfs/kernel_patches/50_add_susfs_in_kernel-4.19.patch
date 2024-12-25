@@ -714,21 +714,21 @@ index 1a85f75b19e0..0a5e5a45cc2f 100644
  
  	err = vfs_statfs(&path, buf);
 diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
-index fa762c5fbcb2..3e304c72e56c 100644
+index fa762c5fbcb2..c981cd698fce 100644
 --- a/fs/proc/cmdline.c
 +++ b/fs/proc/cmdline.c
 @@ -4,8 +4,18 @@
  #include <linux/proc_fs.h>
  #include <linux/seq_file.h>
  
-+#ifdef CONFIG_KSU_SUSFS_SPOOF_PROC_CMDLINE
-+extern int susfs_spoof_proc_cmdline(struct seq_file *m);
++#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
++extern int susfs_spoof_cmdline_or_bootconfig(struct seq_file *m);
 +#endif
 +
  static int cmdline_proc_show(struct seq_file *m, void *v)
  {
-+#ifdef CONFIG_KSU_SUSFS_SPOOF_PROC_CMDLINE
-+	if (!susfs_spoof_proc_cmdline(m)) {
++#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
++	if (!susfs_spoof_cmdline_or_bootconfig(m)) {
 +		seq_putc(m, '\n');
 +		return 0;
 +	}
@@ -960,20 +960,19 @@ index adcc8f01c316..97ab3dafdbc9 100644
  
  struct file; /* forward dec */
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index faf5a0e2d7cc..0490a495cfaf 100644
+index faf5a0e2d7cc..d8aeccbb8035 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1511,6 +1511,10 @@ struct task_struct {
- #endif
- 	ANDROID_KABI_RESERVE(8);
- 
-+
+@@ -1515,6 +1515,9 @@ struct task_struct {
+ 	 * New fields for task_struct should be added above here, so that
+ 	 * they are included in the randomized portion of task_struct.
+ 	 */
 +#if defined(CONFIG_KSU_SUSFS) && !defined(ANDROID_KABI_RESERVE)
 +	u64 android_kabi_reserved8;
 +#endif
- 	/*
- 	 * New fields for task_struct should be added above here, so that
- 	 * they are included in the randomized portion of task_struct.
+ 	randomized_struct_fields_end
+ 
+ 	/* CPU-specific state of this task: */
 diff --git a/include/linux/sched/user.h b/include/linux/sched/user.h
 index af2576812484..12bacbdc8c4b 100644
 --- a/include/linux/sched/user.h
