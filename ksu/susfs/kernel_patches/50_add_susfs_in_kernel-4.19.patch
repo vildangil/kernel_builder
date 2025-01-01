@@ -394,7 +394,7 @@ index d7f4c149bd98..0ba0bd5f141d 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 0e25713d09fa..025fc1321926 100644
+index 0e25713d09fa..318bec0856d1 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -31,6 +31,23 @@
@@ -604,7 +604,7 @@ index 0e25713d09fa..025fc1321926 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3559,3 +3686,24 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3559,3 +3686,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -629,6 +629,20 @@ index 0e25713d09fa..025fc1321926 100644
 +	susfs_try_umount_all(current_uid().val);
 +}
 +#endif
++#ifdef CONFIG_KSU_SUSFS
++bool susfs_is_mnt_devname_ksu(struct path *path) {
++	struct mount *mnt;
++
++	if (path && path->mnt) {
++		mnt = real_mount(path->mnt);
++		if (mnt && mnt->mnt_devname && !strcmp(mnt->mnt_devname, "KSU")) {
++			return true;
++		}
++	}
++	return false;
++}
++#endif
+\ No newline at end of file
 diff --git a/fs/open.c b/fs/open.c
 index 38ff515fbdf1..671348f06d24 100644
 --- a/fs/open.c
