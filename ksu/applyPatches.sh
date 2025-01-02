@@ -29,7 +29,7 @@ fi
 if [[ "$short_k_ver" == "4.19" ]] ; then
   cp "$susdir/fs/susfs.c" ./fs
   cp "$susdir/include/linux/susfs.h" ./include/linux
-  cd KernelSU && git am "$patchesdir/KernelSU"/* && cd ..
+  cd KernelSU && git am "$patchesdir/KernelSU/*" && cd ..
 fi
 
 sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}\"/" "${defconfig_file}"
