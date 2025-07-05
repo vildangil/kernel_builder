@@ -16,7 +16,7 @@ on: # [push]
       COMPILER:
         description: 'compilers used'
         required: true
-        default: 'WeebX-Clang-15gr'
+        default: 'shattered-Clang-15'
       KREPO:
         description: 'kernel repo'
         required: true
