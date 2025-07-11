@@ -23,11 +23,11 @@ Signed-off-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
 Signed-off-by: fukiame <fukiame@proton.me>
 ---
  drivers/input/input.c | 10 ++++++++++
- fs/exec.c             | 13 +++++++++++++
+ fs/exec.c             | 12 ++++++++++++
  fs/open.c             |  9 +++++++++
  fs/read_write.c       | 10 ++++++++++
  fs/stat.c             | 12 ++++++++++++
- 5 files changed, 54 insertions(+)
+ 5 files changed, 53 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
 index ecf524803b34..82fdd05c209b 100644
@@ -56,18 +56,17 @@ index ecf524803b34..82fdd05c209b 100644
  
  		spin_lock_irqsave(&dev->event_lock, flags);
 diff --git a/fs/exec.c b/fs/exec.c
-index 03ceb14fd846..384917045e77 100644
+index 03ceb14fd846..3d205cfde5af 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1914,12 +1914,22 @@ int do_execve_file(struct file *file, void *__argv, void *__envp)
+@@ -1914,12 +1914,21 @@ int do_execve_file(struct file *file, void *__argv, void *__envp)
  	return __do_execve_file(AT_FDCWD, NULL, argv, envp, 0, file);
  }
  
 +#ifdef CONFIG_KSU
 +__attribute__((hot))
-+extern int ksu_handle_execve_sucompat(int *fd,	const char __user **filename_user,
-+				void *__never_use_argv,	void *__never_use_envp,
-+				int *__never_use_flags);
++extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
++				void *argv, void *envp, int *flags);
 +#endif
 +
  int do_execve(struct filename *filename,
@@ -82,7 +81,7 @@ index 03ceb14fd846..384917045e77 100644
  	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
  }
  
-@@ -1947,6 +1957,9 @@ static int compat_do_execve(struct filename *filename,
+@@ -1947,6 +1956,9 @@ static int compat_do_execve(struct filename *filename,
  		.is_compat = true,
  		.ptr.compat = __envp,
  	};
@@ -93,7 +92,7 @@ index 03ceb14fd846..384917045e77 100644
  }
  
 diff --git a/fs/open.c b/fs/open.c
-index 155731594c8e..492654d5ef29 100644
+index 155731594c8e..ab925155a66f 100644
 --- a/fs/open.c
 +++ b/fs/open.c
 @@ -450,8 +450,17 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
@@ -101,7 +100,7 @@ index 155731594c8e..492654d5ef29 100644
  }
  
 +#ifdef CONFIG_KSU
-+__attribute__((hot)) 
++__attribute__((hot))
 +extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
 +				int *mode, int *flags);
 +#endif
@@ -115,7 +114,7 @@ index 155731594c8e..492654d5ef29 100644
  }
  
 diff --git a/fs/read_write.c b/fs/read_write.c
-index 4954fae7f736..d9260a97fe9b 100644
+index 4954fae7f736..612755855d5d 100644
 --- a/fs/read_write.c
 +++ b/fs/read_write.c
 @@ -588,8 +588,18 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
@@ -131,14 +130,14 @@ index 4954fae7f736..d9260a97fe9b 100644
  SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
  {
 +#ifdef CONFIG_KSU
-+	if (unlikely(ksu_vfs_read_hook)) 
++	if (unlikely(ksu_vfs_read_hook))
 +		ksu_handle_sys_read(fd, &buf, &count);
 +#endif
  	return ksys_read(fd, buf, count);
  }
  
 diff --git a/fs/stat.c b/fs/stat.c
-index 376543199b5a..36c8f0cd6311 100644
+index 376543199b5a..cd8a0b99306b 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -353,6 +353,12 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
@@ -146,7 +145,7 @@ index 376543199b5a..36c8f0cd6311 100644
  }
  
 +#ifdef CONFIG_KSU
-+__attribute__((hot)) 
++__attribute__((hot))
 +extern int ksu_handle_stat(int *dfd, const char __user **filename_user,
 +				int *flags);
 +#endif
@@ -169,7 +168,7 @@ index 376543199b5a..36c8f0cd6311 100644
  	int error;
  
 +#ifdef CONFIG_KSU // 32-bit su
-+	ksu_handle_stat(&dfd, &filename, &flag); 
++	ksu_handle_stat(&dfd, &filename, &flag);
 +#endif
  	error = vfs_fstatat(dfd, filename, &stat, flag);
  	if (error)
