@@ -13,7 +13,7 @@ Signed-off-by: fukiame <fukiame@proton.me>
  4 files changed, 517 insertions(+), 59 deletions(-)
 
 diff --git a/fs/dcache.c b/fs/dcache.c
-index 7d3094872d7f..82e256bf2fbb 100644
+index 61953a36af9d..ab6832e9e188 100644
 --- a/fs/dcache.c
 +++ b/fs/dcache.c
 @@ -31,9 +31,6 @@
@@ -26,10 +26,10 @@ index 7d3094872d7f..82e256bf2fbb 100644
  #include "internal.h"
  #include "mount.h"
  
-@@ -2194,13 +2191,6 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
- 			if (dentry_cmp(dentry, str, hashlen_len(hashlen)) != 0)
- 				continue;
- 		}
+@@ -2220,13 +2217,6 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
+ 			continue;
+ 		if (dentry_cmp(dentry, str, hashlen_len(hashlen)) != 0)
+ 			continue;
 -#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 -		if (dentry->d_inode
 -			&& unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH)
@@ -40,7 +40,7 @@ index 7d3094872d7f..82e256bf2fbb 100644
  		*seqp = seq;
  		return dentry;
  	}
-@@ -2283,12 +2273,6 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
+@@ -2309,12 +2299,6 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
  		if (dentry->d_name.hash != hash)
  			continue;
  
