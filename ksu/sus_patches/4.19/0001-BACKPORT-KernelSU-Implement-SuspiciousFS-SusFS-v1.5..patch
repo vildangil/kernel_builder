@@ -49,7 +49,7 @@ index d6c02f22179d..e8e117ee69c8 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/namei.c b/fs/namei.c
-index 6e83cd855473..389583490c29 100644
+index 94f388e94dd1..f0d89983a556 100644
 --- a/fs/namei.c
 +++ b/fs/namei.c
 @@ -40,6 +40,9 @@
@@ -425,7 +425,7 @@ index 6e83cd855473..389583490c29 100644
  	putname(name);
  	return retval;
  }
-@@ -2910,6 +3128,11 @@ static int may_delete(struct vfsmount *mnt, struct inode *dir, struct dentry *vi
+@@ -2930,6 +3148,11 @@ static int may_delete(struct vfsmount *mnt, struct inode *dir, struct dentry *vi
  		return error;
  	if (IS_APPEND(dir))
  		return -EPERM;
@@ -437,7 +437,7 @@ index 6e83cd855473..389583490c29 100644
  
  	if (check_sticky(dir, inode) || IS_APPEND(inode) ||
  	    IS_IMMUTABLE(inode) || IS_SWAPFILE(inode) || HAS_UNMAPPED_ID(inode))
-@@ -2939,8 +3162,20 @@ static int may_delete(struct vfsmount *mnt, struct inode *dir, struct dentry *vi
+@@ -2959,8 +3182,20 @@ static int may_delete(struct vfsmount *mnt, struct inode *dir, struct dentry *vi
   */
  static inline int may_create(struct vfsmount *mnt, struct inode *dir, struct dentry *child)
  {
@@ -458,7 +458,7 @@ index 6e83cd855473..389583490c29 100644
  	if (child->d_inode)
  		return -EEXIST;
  	if (IS_DEADDIR(dir))
-@@ -3070,6 +3305,12 @@ static int may_open(const struct path *path, int acc_mode, int flag)
+@@ -3090,6 +3325,12 @@ static int may_open(const struct path *path, int acc_mode, int flag)
  	if (!inode)
  		return -ENOENT;
  
@@ -471,7 +471,7 @@ index 6e83cd855473..389583490c29 100644
  	switch (inode->i_mode & S_IFMT) {
  	case S_IFLNK:
  		return -ELOOP;
-@@ -3141,7 +3382,20 @@ static inline int open_to_namei_flags(int flag)
+@@ -3161,7 +3402,20 @@ static inline int open_to_namei_flags(int flag)
  static int may_o_create(const struct path *dir, struct dentry *dentry, umode_t mode)
  {
  	struct user_namespace *s_user_ns;
@@ -492,7 +492,7 @@ index 6e83cd855473..389583490c29 100644
  	if (error)
  		return error;
  
-@@ -3254,15 +3508,55 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+@@ -3274,15 +3528,55 @@ static int lookup_open(struct nameidata *nd, struct path *path,
  	int error, create_error = 0;
  	umode_t mode = op->mode;
  	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
@@ -548,7 +548,7 @@ index 6e83cd855473..389583490c29 100644
  			if (IS_ERR(dentry))
  				return PTR_ERR(dentry);
  		}
-@@ -3280,6 +3574,12 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+@@ -3300,6 +3594,12 @@ static int lookup_open(struct nameidata *nd, struct path *path,
  	}
  	if (dentry->d_inode) {
  		/* Cached positive dentry: will open in f_op->open */
@@ -561,7 +561,7 @@ index 6e83cd855473..389583490c29 100644
  		goto out_no_open;
  	}
  
-@@ -3323,6 +3623,16 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+@@ -3343,6 +3643,16 @@ static int lookup_open(struct nameidata *nd, struct path *path,
  				    mode);
  		if (unlikely(error == -ENOENT) && create_error)
  			error = create_error;
@@ -578,7 +578,7 @@ index 6e83cd855473..389583490c29 100644
  		return error;
  	}
  
-@@ -3338,6 +3648,12 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+@@ -3358,6 +3668,12 @@ static int lookup_open(struct nameidata *nd, struct path *path,
  			}
  			dput(dentry);
  			dentry = res;
@@ -591,7 +591,7 @@ index 6e83cd855473..389583490c29 100644
  		}
  	}
  
-@@ -3387,6 +3703,10 @@ static int do_last(struct nameidata *nd,
+@@ -3407,6 +3723,10 @@ static int do_last(struct nameidata *nd,
  	struct path path;
  	int error;
  
@@ -602,7 +602,7 @@ index 6e83cd855473..389583490c29 100644
  	nd->flags &= ~LOOKUP_PARENT;
  	nd->flags |= op->intent;
  
-@@ -3674,12 +3994,19 @@ static struct file *path_openat(struct nameidata *nd,
+@@ -3696,12 +4016,19 @@ static struct file *path_openat(struct nameidata *nd,
  	return ERR_PTR(error);
  }
  
@@ -622,7 +622,7 @@ index 6e83cd855473..389583490c29 100644
  
  	set_nameidata(&nd, dfd, pathname);
  	filp = path_openat(&nd, op, flags | LOOKUP_RCU);
-@@ -3687,6 +4014,25 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
+@@ -3709,6 +4036,25 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
  		filp = path_openat(&nd, op, flags);
  	if (unlikely(filp == ERR_PTR(-ESTALE)))
  		filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
@@ -649,7 +649,7 @@ index 6e83cd855473..389583490c29 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 5d568dbec3a1..2106203aeab0 100644
+index db8c492242aa..e21ef7ab1009 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,36 @@
@@ -804,7 +804,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  		if (err)
  			goto out_free_cache;
  
-@@ -949,11 +1047,26 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+@@ -945,11 +1043,26 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
  {
  	struct mount *mnt;
  	struct dentry *root;
@@ -832,7 +832,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -979,6 +1092,29 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+@@ -975,6 +1088,29 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
  	mnt->mnt.mnt_sb = root->d_sb;
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -862,7 +862,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
  	unlock_mount_hash();
-@@ -1008,7 +1144,48 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1004,7 +1140,48 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
  
@@ -911,7 +911,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1060,6 +1237,32 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1056,6 +1233,32 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -944,7 +944,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1739,6 +1942,9 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1736,6 +1939,9 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  					int flag)
  {
  	struct mount *res, *p, *q, *r, *parent;
@@ -954,7 +954,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  
  	if (!(flag & CL_COPY_UNBINDABLE) && IS_MNT_UNBINDABLE(mnt))
  		return ERR_PTR(-EINVAL);
-@@ -1755,6 +1961,9 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1752,6 +1958,9 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -964,7 +964,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1784,6 +1993,13 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1781,6 +1990,13 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  			q = clone_mnt(p, p->mnt.mnt_root, flag);
  			if (IS_ERR(q))
  				goto out;
@@ -978,7 +978,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
  			attach_mnt(q, parent, p->mnt_mp);
-@@ -2249,6 +2465,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2250,6 +2466,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -1006,7 +1006,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2848,6 +3085,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2849,6 +3086,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -1022,7 +1022,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -2925,6 +3171,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -2926,6 +3172,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -1033,7 +1033,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  
  	BUG_ON(!ns);
  
-@@ -2944,6 +3194,11 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -2945,6 +3195,11 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -1045,7 +1045,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -2960,6 +3215,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -2961,6 +3216,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	 */
  	p = old;
  	q = new;
@@ -1058,7 +1058,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  	while (p) {
  		q->mnt_ns = new_ns;
  		new_ns->mounts++;
-@@ -2977,9 +3238,19 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -2978,9 +3239,19 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		q = next_mnt(q, new);
  		if (!q)
  			break;
@@ -1078,7 +1078,7 @@ index 5d568dbec3a1..2106203aeab0 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3522,3 +3793,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3523,3 +3794,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -1300,7 +1300,7 @@ index 81882a13212d..63c897de86e7 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index 022cdfed3596..9d91d18e3acf 100644
+index a0df10e6b6db..5c125e20829b 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -20,6 +20,9 @@
@@ -1313,8 +1313,8 @@ index 022cdfed3596..9d91d18e3acf 100644
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -507,6 +510,10 @@ static void show_vma_header_prefix_fake(struct seq_file *m,
- 		    MAJOR(dev), MINOR(dev), ino);
+@@ -490,6 +493,10 @@ static int show_vma_header_prefix(struct seq_file *m, unsigned long start,
+ 	return 0;
  }
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
@@ -1324,7 +1324,7 @@ index 022cdfed3596..9d91d18e3acf 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -521,8 +528,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -504,8 +511,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1340,8 +1340,8 @@ index 022cdfed3596..9d91d18e3acf 100644
 +bypass_orig_flow:
 +#endif
  		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
- 		struct dentry *dentry = file->f_path.dentry;
- 		if (dentry) {
+ 	}
+ 
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
 index bd07f0f4f06b..f12d5b1cff1a 100644
 --- a/fs/proc_namespace.c
@@ -1915,7 +1915,7 @@ index 376543199b5a..2f91a8fe7dfc 100644
  	stat->ino = inode->i_ino;
  	stat->mode = inode->i_mode;
 diff --git a/fs/statfs.c b/fs/statfs.c
-index 56f655f757ff..b3f2f6c3cbd8 100644
+index 29786598c2b5..89707f618893 100644
 --- a/fs/statfs.c
 +++ b/fs/statfs.c
 @@ -9,6 +9,10 @@
@@ -3589,7 +3589,7 @@ index b8ec1dbd1be5..e904964790d1 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index 7903c9eb841a..0ed5cf4999f8 100644
+index b0f472017845..2766e0078569 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
 @@ -1262,12 +1262,19 @@ static int override_version(struct new_utsname __user *name)
@@ -3613,7 +3613,7 @@ index 7903c9eb841a..0ed5cf4999f8 100644
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
 diff --git a/security/selinux/avc.c b/security/selinux/avc.c
-index 762ef1646478..ab67c1a9012f 100644
+index d569852e5761..3031caf603de 100644
 --- a/security/selinux/avc.c
 +++ b/security/selinux/avc.c
 @@ -44,6 +44,12 @@
