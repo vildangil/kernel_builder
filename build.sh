@@ -53,7 +53,7 @@ for toolchain in $1; do
     echo "compiler: $(cat ${toolchain}.info)" >> "${zip_name}.info"
 
     echo "build succeeded in $((DIFF / 60))m, $((DIFF % 60))s" > "${toolchain}.log.info"
-    echo "ak3 zip file: ${zip_name}" >> "${toolchain}.log.info"
+    echo "ak3 zip file: <code>${zip_name}</code>" >> "${toolchain}.log.info"
     echo "compiler: $(cat ${toolchain}.info)" >> "${toolchain}.log.info"
   else
     BUILD_END=$(date +"%s")
