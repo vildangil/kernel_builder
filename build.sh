@@ -29,7 +29,7 @@ pack() {
     fi
   fi
   zip -r9 "$1" ./* -x .git README.md ./*placeholder
-  rm ${maindir}/banner_append
+  rm ${maindir}/banner_append "${out_image}"
   cd "${maindir}"
 }
 
