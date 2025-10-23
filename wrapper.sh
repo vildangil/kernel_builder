@@ -88,10 +88,9 @@ if [[ $(ls *.zip) ]]; then
   done
 fi
 
-rm *.zip*
+rm *.zip* *.log
 if [[ ! -z "$2" ]]; then
   rm -rf out ../zipper
-  rm *.log
 fi
 
 RUN_END=$(date +"%s")
