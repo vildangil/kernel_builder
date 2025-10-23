@@ -49,7 +49,7 @@ for toolchain in $1; do
     DIFF=$((BUILD_END - BUILD_START))
     pack ${zip_name}
     echo "build succeeded in $((DIFF / 60))m, $((DIFF % 60))s" > "${zip_name}.info"
-    echo "md5: $(md5sum "${zip_name}" | cut -d' ' -f1)" >> "${zip_name}.info"
+    echo "md5: <code>$(md5sum "${zip_name}</code>" | cut -d' ' -f1)" >> "${zip_name}.info"
     echo "compiler: $(cat ${toolchain}.info)" >> "${zip_name}.info"
 
     echo "build succeeded in $((DIFF / 60))m, $((DIFF % 60))s" > "${toolchain}.log.info"
