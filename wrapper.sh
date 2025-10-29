@@ -67,7 +67,7 @@ case $PATCH_KSU in
   ;;
   * )
     bash ../tg_utils.sh msg "KernelSU patching enabled, patching"
-    bash ../ksu/applyPatches.sh || exit 1
+    bash ../ksu/applyPatches.sh $1 || exit 1
     bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
     bash ../build.sh "$COMPILERS" $1
   ;;
