@@ -62,9 +62,9 @@ case $PATCH_KSU in
     bash ../build.sh "$COMPILERS" $1
   ;;
   "sus" )
-    bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU and SuSFS patching enabled, patching"
+    bash ../tg_utils.sh msg "KernelSU and SuSFS patching enabled, patching"
     bash ../ksu/asus.sh
-    bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+    bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
     bash ../build.sh "$COMPILERS"
   ;;
   "" )
