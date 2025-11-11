@@ -16,15 +16,15 @@ on: # [push]
       COMPILER:
         description: 'compilers used'
         required: true
-        default: 'Geopelia-Clang-21'
+        default: 'AOSP-Clang'
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/TelegramAt25/niigo_kernel_xiaomi_blossom'
+        default: 'https://github.com/zyexro/niigo_kernel_xiaomi_blossom'
       KBRANCH:
         description: 'kernel branch'
         required: true
-        default: 'yoka_rb1'
+        default: 'rebase'
       NOTES:
         description: 'notes to print out'
         required: false
@@ -36,11 +36,11 @@ on: # [push]
       ZREPO:
         description: 'zipper repo'
         required: false
-        default: ''
+        default: 'https://github.com/zyexro/AnyKernel3.git'
       ZBRANCH:
         description: 'zipper branch'
         required: false
-        default: ''
+        default: 'blossom'
       KSU:
         description: 'if dont want ksu then leave blank'
         required: false
@@ -48,7 +48,7 @@ on: # [push]
       TG_RECIPENT:
         description: 'idk'
         required: false
-        default: ''
+        default: '5863300453'
       CONTAINER:
         description: 'if you know you know'
         required: true
