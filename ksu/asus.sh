@@ -23,15 +23,6 @@ else
   exit 1
 fi
 
-if [[ -d "$suspatchesdir" ]]; then
-  for patch_file in "$suspatchesdir"/*.patch ; do
-    git am "$patch_file"
-  done
-else
-  echo "patching ksu susfs failed, the kernel version you want to patch doesnt have patches here yet"
-  exit 1
-fi
-
 sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}sus\"/" "${defconfig_file}"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
