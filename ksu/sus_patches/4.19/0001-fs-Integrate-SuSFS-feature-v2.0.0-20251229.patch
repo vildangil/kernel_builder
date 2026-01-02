@@ -1,32 +1,35 @@
-From b2b59f9de43898b12d249d24a1e9e31ec2787e7c Mon Sep 17 00:00:00 2001
-From: zyexro <zyexro@proton.me>
-Date: Wed, 3 Dec 2025 22:24:00 +0100
-Subject: [PATCH] sus v2.0.0
+From 5ad4ab0b8b8ed49196342d716c5c144df0420646 Mon Sep 17 00:00:00 2001
+From: sakana164 <76257039+sakana164@users.noreply.github.com>
+Date: Mon, 29 Dec 2025 01:11:33 +0800
+Subject: [PATCH] fs: Integrate SuSFS feature v2.0.0 (20251229)
 
+Co-authored-by: simonpunk <simonpunk2016@gmail.com>
+Co-authored-by: JackA1ltman <cs2dtzq@163.com>
+Signed-off-by: sakana164 <76257039+sakana164@users.noreply.github.com>
 Signed-off-by: zyexro <zyexro@proton.me>
 ---
- fs/Makefile               |    2 +
- fs/namei.c                |  350 ++++++++++++-
- fs/namespace.c            |  237 ++++++++-
- fs/notify/fdinfo.c        |   53 ++
- fs/overlayfs/inode.c      |    1 -
- fs/proc/base.c            |   29 ++
- fs/proc/cmdline.c         |   10 +
- fs/proc/fd.c              |   45 ++
- fs/proc/task_mmu.c        |   92 ++++
- fs/proc_namespace.c       |   25 +
- fs/readdir.c              |  283 ++++++++++-
- fs/stat.c                 |   18 +
- fs/statfs.c               |   16 +
- fs/susfs.c                | 1013 +++++++++++++++++++++++++++++++++++++
- include/linux/mount.h     |    4 +
- include/linux/sched.h     |    1 -
- include/linux/susfs.h     |  246 +++++++++
- include/linux/susfs_def.h |   87 ++++
- kernel/kallsyms.c         |   32 ++
- kernel/sys.c              |    6 +
- security/selinux/avc.c    |   20 +
- 21 files changed, 2562 insertions(+), 8 deletions(-)
+ fs/Makefile               |   2 +
+ fs/namei.c                | 350 +++++++++++++-
+ fs/namespace.c            | 235 ++++++++-
+ fs/notify/fdinfo.c        |  53 ++
+ fs/overlayfs/inode.c      |   1 -
+ fs/overlayfs/readdir.c    |   1 +
+ fs/proc/base.c            |  29 ++
+ fs/proc/cmdline.c         |  10 +
+ fs/proc/fd.c              |  18 +
+ fs/proc/task_mmu.c        |  93 ++++
+ fs/proc_namespace.c       |  25 +
+ fs/readdir.c              | 283 ++++++++++-
+ fs/stat.c                 |  18 +
+ fs/statfs.c               |  16 +
+ fs/susfs.c                | 993 ++++++++++++++++++++++++++++++++++++++
+ include/linux/mount.h     |   4 +
+ include/linux/susfs.h     | 222 +++++++++
+ include/linux/susfs_def.h |  87 ++++
+ kernel/kallsyms.c         |  32 ++
+ kernel/sys.c              |   7 +
+ security/selinux/avc.c    |  20 +
+ 21 files changed, 2493 insertions(+), 6 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -645,7 +648,7 @@ index 94f388e94dd1..cca3ab658870 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index db8c492242aa..6f2459a9d93b 100644
+index db8c492242aa..dcbbe998771c 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,23 @@
@@ -871,19 +874,10 @@ index db8c492242aa..6f2459a9d93b 100644
  #endif
  		mnt->mnt.data = NULL;
  
-@@ -975,6 +1144,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
- 	mnt->mnt.mnt_sb = root->d_sb;
- 	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
- 	mnt->mnt_parent = mnt;
-+
- 	lock_mount_hash();
- 	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
- 	unlock_mount_hash();
-@@ -1003,8 +1173,33 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
- 	struct super_block *sb = old->mnt.mnt_sb;
+@@ -1004,7 +1173,33 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
--
+ 
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	// We won't check it anymore if boot-completed stage is triggered.
 +	if (susfs_is_boot_completed_triggered) {
@@ -1118,8 +1112,20 @@ index 7f3787a6b445..2080fe6f7c15 100644
  	type = ovl_path_real(dentry, &realpath);
  	old_cred = ovl_override_creds(dentry->d_sb);
  	err = vfs_getattr(&realpath, stat, request_mask, flags);
+diff --git a/fs/overlayfs/readdir.c b/fs/overlayfs/readdir.c
+index 47710c1a8d4f..f81e7384857f 100644
+--- a/fs/overlayfs/readdir.c
++++ b/fs/overlayfs/readdir.c
+@@ -896,6 +896,7 @@ static int ovl_dir_open(struct inode *inode, struct file *file)
+ 		return -ENOMEM;
+ 
+ 	type = ovl_path_real(file->f_path.dentry, &realpath);
++
+ 	realfile = ovl_path_open(&realpath, file->f_flags);
+ 	if (IS_ERR(realfile)) {
+ 		kfree(od);
 diff --git a/fs/proc/base.c b/fs/proc/base.c
-index 4ccc3cf13e36..5548c45dd29b 100644
+index 5128e3f94666..4a77041c066f 100644
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
 @@ -95,6 +95,9 @@
@@ -1132,7 +1138,7 @@ index 4ccc3cf13e36..5548c45dd29b 100644
  #include <trace/events/oom.h>
  #include "internal.h"
  #include "fd.h"
-@@ -821,6 +824,9 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
+@@ -825,6 +828,9 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
  	ssize_t copied;
  	char *page;
  	unsigned int flags;
@@ -1142,7 +1148,7 @@ index 4ccc3cf13e36..5548c45dd29b 100644
  
  	if (!mm)
  		return 0;
-@@ -837,6 +843,22 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
+@@ -841,6 +847,22 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
  
  	while (count > 0) {
  		size_t this_len = min_t(size_t, count, PAGE_SIZE);
@@ -1165,7 +1171,7 @@ index 4ccc3cf13e36..5548c45dd29b 100644
  
  		if (write && copy_from_user(page, buf, this_len)) {
  			copied = -EFAULT;
-@@ -2226,6 +2248,13 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
+@@ -2230,6 +2252,13 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
  				vma = vma->vm_next) {
  			if (!vma->vm_file)
  				continue;
@@ -1203,7 +1209,7 @@ index fa762c5fbcb2..c981cd698fce 100644
  	seq_putc(m, '\n');
  	return 0;
 diff --git a/fs/proc/fd.c b/fs/proc/fd.c
-index 81882a13212d..5fd5d5453e05 100644
+index 81882a13212d..57c060847ffa 100644
 --- a/fs/proc/fd.c
 +++ b/fs/proc/fd.c
 @@ -12,6 +12,9 @@
@@ -1226,47 +1232,20 @@ index 81882a13212d..5fd5d5453e05 100644
  
  	task = get_proc_task(m->private);
  	if (!task)
-@@ -53,9 +59,48 @@ static int seq_show(struct seq_file *m, void *v)
+@@ -53,9 +59,21 @@ static int seq_show(struct seq_file *m, void *v)
  	if (ret)
  		return ret;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	mnt = real_mount(file->f_path.mnt);
 +	if (likely(susfs_is_current_proc_umounted()) &&
-+				mnt->mnt_id >= DEFAULT_KSU_MNT_ID)
++		mnt->mnt_id >= DEFAULT_KSU_MNT_ID)
 +	{
-+		struct path path;
-+		char *pathname = kmalloc(PAGE_SIZE, GFP_KERNEL);
-+		char *dpath;
-+
 +		for (; mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }
-+
-+		if (!pathname) {
-+			goto out_seq_printf;
-+		}
-+		dpath = d_path(&file->f_path, pathname, PAGE_SIZE);
-+		if (!dpath) {
-+			goto out_free_pathname;
-+		}
-+		if (kern_path(dpath, 0, &path)) {
-+			goto out_free_pathname;
-+		}
-+		seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
-+				(long long)file->f_pos, f_flags,
-+				mnt->mnt_id,
-+				path.dentry->d_inode->i_ino);
-+		path_put(&path);
-+		kfree(pathname);
-+		goto bypass_orig_flow;
-+out_free_pathname:
-+		kfree(pathname);
 +	}
-+out_seq_printf:
-+	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
-+			(long long)file->f_pos, f_flags,
-+			mnt->mnt_id,
-+			file_inode(file)->i_ino);
-+bypass_orig_flow:
++	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
++			   (long long)file->f_pos, f_flags,
++			   mnt->mnt_id);
 +#else
  	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
  		   (long long)file->f_pos, f_flags,
@@ -1276,20 +1255,21 @@ index 81882a13212d..5fd5d5453e05 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index 7f240116d75b..e1d443e28531 100644
+index 7f240116d75b..2db9146f05be 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
-@@ -20,6 +20,9 @@
+@@ -20,6 +20,10 @@
  #include <linux/uaccess.h>
  #include <linux/mm_inline.h>
  #include <linux/pkeys.h>
++#include <linux/ctype.h>
 +#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
 +#include <linux/susfs_def.h>
 +#endif
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -490,6 +493,10 @@ static int show_vma_header_prefix(struct seq_file *m, unsigned long start,
+@@ -490,6 +494,10 @@ static int show_vma_header_prefix(struct seq_file *m, unsigned long start,
  	return 0;
  }
  
@@ -1300,7 +1280,7 @@ index 7f240116d75b..e1d443e28531 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -504,8 +511,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -504,8 +512,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1336,7 +1316,7 @@ index 7f240116d75b..e1d443e28531 100644
  		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
  	}
  
-@@ -1014,6 +1048,35 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -1014,6 +1049,35 @@ static int show_smap(struct seq_file *m, void *v)
  
  	memset(&mss, 0, sizeof(mss));
  
@@ -1372,7 +1352,7 @@ index 7f240116d75b..e1d443e28531 100644
  	smap_gather_stats(vma, &mss);
  
  	show_map_vma(m, vma);
-@@ -1033,6 +1096,11 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -1033,6 +1097,11 @@ static int show_smap(struct seq_file *m, void *v)
  
  	if (arch_pkeys_enabled())
  		seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
@@ -1384,7 +1364,7 @@ index 7f240116d75b..e1d443e28531 100644
  	show_smap_vma_flags(m, vma);
  
  	m_cache_vma(m, vma);
-@@ -1068,7 +1136,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+@@ -1068,7 +1137,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
  	hold_task_mempolicy(priv);
  
  	for (vma = priv->mm->mmap; vma;) {
@@ -1404,7 +1384,7 @@ index 7f240116d75b..e1d443e28531 100644
  		last_vma_end = vma->vm_end;
  
  		/*
-@@ -1775,6 +1855,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1775,6 +1856,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  	unsigned long start_vaddr;
  	unsigned long end_vaddr;
  	int ret = 0, copied = 0;
@@ -1414,7 +1394,7 @@ index 7f240116d75b..e1d443e28531 100644
  
  	if (!mm || !mmget_not_zero(mm))
  		goto out;
-@@ -1835,6 +1918,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1835,6 +1919,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  			goto out_free;
  		ret = walk_page_range(start_vaddr, end, &pagemap_walk);
  		up_read(&mm->mmap_sem);
@@ -1431,7 +1411,7 @@ index 7f240116d75b..e1d443e28531 100644
  
  		len = min(count, PM_ENTRY_BYTES * pm.pos);
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index bd07f0f4f06b..bd1b534cc9c7 100644
+index bd07f0f4f06b..be212d81b87b 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
 @@ -12,12 +12,19 @@
@@ -1472,7 +1452,7 @@ index bd07f0f4f06b..bd1b534cc9c7 100644
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+		if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_KSU_MNT_ID) {
++	if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_KSU_MNT_ID) {
 +		return 0;
 +	}
 +#endif
@@ -2043,10 +2023,10 @@ index 29786598c2b5..4c4712fefeed 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000000..2bc25c3de342
+index 000000000000..dd6b149d83ed
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,1013 @@
+@@ -0,0 +1,993 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -2069,7 +2049,6 @@ index 000000000000..2bc25c3de342
 +extern bool susfs_is_current_ksu_domain(void);
 +
 +#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
-+bool susfs_is_avc_log_spoofing_enabled = false;
 +bool susfs_is_log_enabled __read_mostly = true;
 +#define SUSFS_LOGI(fmt, ...) if (susfs_is_log_enabled) pr_info("susfs:[%u][%d][%s] " fmt, current_uid().val, current->pid, __func__, ##__VA_ARGS__)
 +#define SUSFS_LOGE(fmt, ...) if (susfs_is_log_enabled) pr_err("susfs:[%u][%d][%s]" fmt, current_uid().val, current->pid, __func__, ##__VA_ARGS__)
@@ -2438,26 +2417,6 @@ index 000000000000..2bc25c3de342
 +		info.err = -EFAULT;
 +	}
 +	SUSFS_LOGI("CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS -> ret: %d\n", info.err);
-+}
-+
-+bool susfs_is_umount_for_zygote_iso_service_enabled = false;
-+void susfs_set_umount_for_zygote_iso_service(void __user **user_info) {
-+	struct st_susfs_umount_for_zygote_iso_service info = {0};
-+
-+	if (copy_from_user(&info, (struct st_susfs_umount_for_zygote_iso_service __user*)*user_info, sizeof(info))) {
-+		info.err = -EFAULT;
-+		goto out_copy_to_user;
-+	}
-+	spin_lock(&susfs_spin_lock_sus_mount);
-+	susfs_is_umount_for_zygote_iso_service_enabled = info.enabled;
-+	spin_unlock(&susfs_spin_lock_sus_mount);
-+	SUSFS_LOGI("susfs_is_umount_for_zygote_iso_service_enabled: %d\n", info.enabled);
-+	info.err = 0;
-+out_copy_to_user:
-+	if (copy_to_user(&((struct st_susfs_umount_for_zygote_iso_service __user*)*user_info)->err, &info.err, sizeof(info.err))) {
-+		info.err = -EFAULT;
-+	}
-+	SUSFS_LOGI("CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE -> ret: %d\n", info.err);
 +}
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
@@ -2905,7 +2864,7 @@ index 000000000000..2bc25c3de342
 +
 +/* susfs avc log spoofing */
 +static DEFINE_SPINLOCK(susfs_spin_lock_set_avc_log_spoofing);
-+extern bool susfs_is_avc_log_spoofing_enabled;
++bool susfs_is_avc_log_spoofing_enabled = false;
 +
 +void susfs_set_avc_log_spoofing(void __user **user_info) {
 +	struct st_susfs_avc_log_spoofing info = {0};
@@ -3060,6 +3019,7 @@ index 000000000000..2bc25c3de342
 +
 +/* No module exit is needed becuase it should never be a loadable kernel module */
 +//void __init susfs_exit(void)
++
 diff --git a/include/linux/mount.h b/include/linux/mount.h
 index adcc8f01c316..09d562ee4271 100644
 --- a/include/linux/mount.h
@@ -3076,24 +3036,12 @@ index adcc8f01c316..09d562ee4271 100644
  	void *data;
  } __randomize_layout;
  
-diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 6c990d790654..5e6c03109483 100644
---- a/include/linux/sched.h
-+++ b/include/linux/sched.h
-@@ -1314,7 +1314,6 @@ struct task_struct {
- 	ANDROID_KABI_RESERVE(6);
- 	ANDROID_KABI_RESERVE(7);
- 	ANDROID_KABI_RESERVE(8);
--
- 	/*
- 	 * New fields for task_struct should be added above here, so that
- 	 * they are included in the randomized portion of task_struct.
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000000..73c377145451
+index 000000000000..e8c901d484d6
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,222 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3116,6 +3064,7 @@ index 000000000000..73c377145451
 +/*********/
 +#define getname_safe(name) (name == NULL ? ERR_PTR(-EINVAL) : getname(name))
 +#define putname_safe(name) (IS_ERR(name) ? NULL : putname(name))
++extern bool susfs_is_avc_log_spoofing_enabled;
 +
 +/**********/
 +/* STRUCT */
@@ -3152,17 +3101,7 @@ index 000000000000..73c377145451
 +
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+struct st_susfs_sus_mount {
-+	char                    				target_pathname[SUSFS_MAX_LEN_PATHNAME];
-+	int                                     err;
-+};
-+
 +struct st_susfs_hide_sus_mnts_for_all_procs {
-+	bool                                    enabled;
-+	int                                     err;
-+};
-+
-+struct st_susfs_umount_for_zygote_iso_service {
 +	bool                                    enabled;
 +	int                                     err;
 +};
@@ -3193,20 +3132,6 @@ index 000000000000..73c377145451
 +	unsigned long                           target_ino;
 +	struct st_susfs_sus_kstat               info;
 +	struct hlist_node                       node;
-+};
-+#endif
-+
-+/* try_umount */
-+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-+struct st_susfs_try_umount {
-+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
-+	int                                     mnt_mode;
-+	int                                     err;
-+};
-+
-+struct st_susfs_try_umount_list {
-+	struct list_head                        list;
-+	struct st_susfs_try_umount              info;
 +};
 +#endif
 +
@@ -3296,7 +3221,6 @@ index 000000000000..73c377145451
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info);
-+void susfs_set_umount_for_zygote_iso_service(void __user **user_info);
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
 +/* sus_kstat */
@@ -3342,7 +3266,7 @@ index 000000000000..73c377145451
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000000..16cdc62d8fa7
+index 000000000000..d53e5a27ad03
 --- /dev/null
 +++ b/include/linux/susfs_def.h
 @@ -0,0 +1,87 @@
@@ -3362,7 +3286,7 @@ index 000000000000..16cdc62d8fa7
 +#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x55553
 +#define CMD_SUSFS_ADD_SUS_MOUNT 0x55560 /* deprecated */
 +#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS 0x55561
-+#define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562
++#define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562 /* deprecated */
 +#define CMD_SUSFS_ADD_SUS_KSTAT 0x55570
 +#define CMD_SUSFS_UPDATE_SUS_KSTAT 0x55571
 +#define CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY 0x55572
@@ -3434,10 +3358,10 @@ index 000000000000..16cdc62d8fa7
 +
 +#endif // #ifndef KSU_SUSFS_DEF_H
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
-index b8ec1dbd1be5..acf7e97435ed 100644
+index c37719c4ea4a..c93048451a60 100644
 --- a/kernel/kallsyms.c
 +++ b/kernel/kallsyms.c
-@@ -634,6 +634,10 @@ static void s_stop(struct seq_file *m, void *p)
+@@ -664,6 +664,10 @@ static void s_stop(struct seq_file *m, void *p)
  {
  }
  
@@ -3448,13 +3372,13 @@ index b8ec1dbd1be5..acf7e97435ed 100644
  static int s_show(struct seq_file *m, void *p)
  {
  	void *value;
-@@ -657,8 +661,36 @@ static int s_show(struct seq_file *m, void *p)
+@@ -687,8 +691,36 @@ static int s_show(struct seq_file *m, void *p)
  		seq_printf(m, "%px %c %s\t[%s]\n", value,
  			   type, iter->name, iter->module_name);
  	} else
 +#ifndef CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-+		seq_printf(m, "%px %c %s\n", value,
-+			   iter->type, iter->name);
+ 		seq_printf(m, "%px %c %s\n", value,
+ 			   iter->type, iter->name);
 +#else
 +	{
 +		if (susfs_starts_with(iter->name, "ksu_") ||
@@ -3478,35 +3402,38 @@ index b8ec1dbd1be5..acf7e97435ed 100644
 +		{
 +			return 0;
 +		}
- 		seq_printf(m, "%px %c %s\n", value,
- 			   iter->type, iter->name);
++		seq_printf(m, "%px %c %s\n", value,
++			   iter->type, iter->name);
 +	}
 +#endif
  	return 0;
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index b22d53eea3e1..9f649b5db9df 100644
+index 4b221434db4b..ad7c69ce7503 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -1262,11 +1262,17 @@ static int override_version(struct new_utsname __user *name)
+@@ -1262,6 +1262,10 @@ static int override_version(struct new_utsname __user *name)
  #endif
  }
  
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +extern void susfs_spoof_uname(struct new_utsname* tmp);
 +#endif
++
  SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  {
  	struct new_utsname tmp;
- 
- 	down_read(&uts_sem);
+@@ -1276,6 +1280,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
+ 		pr_debug("fake uname: %s release=%s\n",
+ 			 current->comm, tmp.release);
+ 	}
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
-+       susfs_spoof_uname(&tmp);
++	susfs_spoof_uname(&tmp);
 +#endif
- 	memcpy(&tmp, utsname(), sizeof(tmp));
- 	if (!strncmp(current->comm, "bpfloader", 9) ||
- 	    !strncmp(current->comm, "netbpfload", 10) ||
+ 	up_read(&uts_sem);
+ 	if (copy_to_user(name, &tmp, sizeof(tmp)))
+ 		return -EFAULT;
 diff --git a/security/selinux/avc.c b/security/selinux/avc.c
 index d569852e5761..a6442cf6169d 100644
 --- a/security/selinux/avc.c
