@@ -1,6 +1,6 @@
-From 5ad4ab0b8b8ed49196342d716c5c144df0420646 Mon Sep 17 00:00:00 2001
-From: sakana164 <76257039+sakana164@users.noreply.github.com>
-Date: Mon, 29 Dec 2025 01:11:33 +0800
+From 9879bba2558b3407dd9eb227bb5c1c817164e1f4 Mon Sep 17 00:00:00 2001
+From: zyexro <zyexro@proton.me>
+Date: Sun, 18 Jan 2026 17:23:02 +0100
 Subject: [PATCH] fs: Integrate SuSFS feature v2.0.0 (20251229)
 
 Co-authored-by: simonpunk <simonpunk2016@gmail.com>
@@ -10,7 +10,7 @@ Signed-off-by: zyexro <zyexro@proton.me>
 ---
  fs/Makefile               |   2 +
  fs/namei.c                | 350 +++++++++++++-
- fs/namespace.c            | 235 ++++++++-
+ fs/namespace.c            | 222 ++++++++-
  fs/notify/fdinfo.c        |  53 ++
  fs/overlayfs/inode.c      |   1 -
  fs/overlayfs/readdir.c    |   1 +
@@ -22,6 +22,7 @@ Signed-off-by: zyexro <zyexro@proton.me>
  fs/readdir.c              | 283 ++++++++++-
  fs/stat.c                 |  18 +
  fs/statfs.c               |  16 +
+ fs/super.c                |  14 +
  fs/susfs.c                | 993 ++++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |   4 +
  include/linux/susfs.h     | 222 +++++++++
@@ -29,18 +30,18 @@ Signed-off-by: zyexro <zyexro@proton.me>
  kernel/kallsyms.c         |  32 ++
  kernel/sys.c              |   7 +
  security/selinux/avc.c    |  20 +
- 21 files changed, 2493 insertions(+), 6 deletions(-)
+ 22 files changed, 2494 insertions(+), 6 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
 
 diff --git a/fs/Makefile b/fs/Makefile
-index 97fe3cfce812..bc24e440075c 100644
+index 9dee1ce94b58..132faba8b4fb 100644
 --- a/fs/Makefile
 +++ b/fs/Makefile
-@@ -14,6 +14,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
- 		pnode.o splice.o sync.o utimes.o d_path.o \
- 		stack.o fs_struct.o statfs.o fs_pin.o nsfs.o
+@@ -15,6 +15,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
+ 		stack.o fs_struct.o statfs.o fs_pin.o nsfs.o \
+ 		fs_context.o fs_parser.o
  
 +obj-$(CONFIG_KSU_SUSFS) += susfs.o
 +
@@ -48,7 +49,7 @@ index 97fe3cfce812..bc24e440075c 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/namei.c b/fs/namei.c
-index 94f388e94dd1..cca3ab658870 100644
+index ea9e472179d7..94bdc2b77318 100644
 --- a/fs/namei.c
 +++ b/fs/namei.c
 @@ -40,6 +40,9 @@
@@ -411,7 +412,7 @@ index 94f388e94dd1..cca3ab658870 100644
  
  	nd->flags &= ~LOOKUP_PARENT;
  	return walk_component(nd, 0);
-@@ -2449,6 +2661,12 @@ static int filename_lookup(int dfd, struct filename *name, unsigned flags,
+@@ -2449,6 +2661,12 @@ int filename_lookup(int dfd, struct filename *name, unsigned flags,
  	if (likely(!retval))
  		audit_inode(name, path->dentry, flags & LOOKUP_PARENT);
  	restore_nameidata();
@@ -648,34 +649,10 @@ index 94f388e94dd1..cca3ab658870 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index db8c492242aa..dcbbe998771c 100644
+index b11e914c2ae5..52d53659c768 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -26,10 +26,23 @@
- #include <linux/bootmem.h>
- #include <linux/task_work.h>
- #include <linux/sched/task.h>
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+#include <linux/susfs_def.h>
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
- 
- #include "pnode.h"
- #include "internal.h"
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+extern bool susfs_is_current_ksu_domain(void);
-+extern bool susfs_is_boot_completed_triggered;
-+
-+static DEFINE_IDA(susfs_ksu_mnt_group_ida);
-+static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
-+
-+#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+
- /* Maximum number of mounts in a mount namespace */
- unsigned int sysctl_mount_max __read_mostly = 100000;
- 
-@@ -108,6 +121,18 @@ static int mnt_alloc_id(struct mount *mnt)
+@@ -109,6 +109,18 @@ static int mnt_alloc_id(struct mount *mnt)
  
  static void mnt_free_id(struct mount *mnt)
  {
@@ -694,7 +671,7 @@ index db8c492242aa..dcbbe998771c 100644
  	ida_free(&mnt_id_ida, mnt->mnt_id);
  }
  
-@@ -116,7 +141,23 @@ static void mnt_free_id(struct mount *mnt)
+@@ -117,7 +129,23 @@ static void mnt_free_id(struct mount *mnt)
   */
  static int mnt_alloc_group_id(struct mount *mnt)
  {
@@ -718,7 +695,7 @@ index db8c492242aa..dcbbe998771c 100644
  
  	if (res < 0)
  		return res;
-@@ -129,6 +170,22 @@ static int mnt_alloc_group_id(struct mount *mnt)
+@@ -130,6 +158,22 @@ static int mnt_alloc_group_id(struct mount *mnt)
   */
  void mnt_release_group_id(struct mount *mnt)
  {
@@ -741,7 +718,7 @@ index db8c492242aa..dcbbe998771c 100644
  	ida_free(&mnt_group_ida, mnt->mnt_group_id);
  	mnt->mnt_group_id = 0;
  }
-@@ -174,6 +231,113 @@ static void drop_mountpoint(struct fs_pin *p)
+@@ -175,6 +219,113 @@ static void drop_mountpoint(struct fs_pin *p)
  	mntput(&m->mnt);
  }
  
@@ -855,7 +832,7 @@ index db8c492242aa..dcbbe998771c 100644
  static struct mount *alloc_vfsmnt(const char *name)
  {
  	struct mount *mnt = kmem_cache_zalloc(mnt_cache, GFP_KERNEL);
-@@ -181,6 +345,7 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -182,6 +333,7 @@ static struct mount *alloc_vfsmnt(const char *name)
  		int err;
  
  		err = mnt_alloc_id(mnt);
@@ -863,7 +840,7 @@ index db8c492242aa..dcbbe998771c 100644
  		if (err)
  			goto out_free_cache;
  
-@@ -199,6 +364,10 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -200,6 +352,10 @@ static struct mount *alloc_vfsmnt(const char *name)
  #else
  		mnt->mnt_count = 1;
  		mnt->mnt_writers = 0;
@@ -874,7 +851,7 @@ index db8c492242aa..dcbbe998771c 100644
  #endif
  		mnt->mnt.data = NULL;
  
-@@ -1004,7 +1173,33 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1039,7 +1195,33 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
  
@@ -908,7 +885,7 @@ index db8c492242aa..dcbbe998771c 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1056,6 +1251,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1091,6 +1273,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -916,7 +893,7 @@ index db8c492242aa..dcbbe998771c 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1736,7 +1932,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1790,7 +1973,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  					int flag)
  {
  	struct mount *res, *p, *q, *r, *parent;
@@ -925,7 +902,7 @@ index db8c492242aa..dcbbe998771c 100644
  	if (!(flag & CL_COPY_UNBINDABLE) && IS_MNT_UNBINDABLE(mnt))
  		return ERR_PTR(-EINVAL);
  
-@@ -1752,6 +1948,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1806,6 +1989,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -933,7 +910,7 @@ index db8c492242aa..dcbbe998771c 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1781,6 +1978,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1835,6 +2019,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  			q = clone_mnt(p, p->mnt.mnt_root, flag);
  			if (IS_ERR(q))
  				goto out;
@@ -941,7 +918,7 @@ index db8c492242aa..dcbbe998771c 100644
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
  			attach_mnt(q, parent, p->mnt_mp);
-@@ -2945,6 +3143,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3074,6 +3259,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -951,7 +928,7 @@ index db8c492242aa..dcbbe998771c 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -2961,6 +3162,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3090,6 +3278,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	 */
  	p = old;
  	q = new;
@@ -959,7 +936,7 @@ index db8c492242aa..dcbbe998771c 100644
  	while (p) {
  		q->mnt_ns = new_ns;
  		new_ns->mounts++;
-@@ -2981,6 +3183,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3110,6 +3299,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -967,7 +944,7 @@ index db8c492242aa..dcbbe998771c 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3523,3 +3726,33 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3653,3 +3843,33 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -1411,7 +1388,7 @@ index 7f240116d75b..2db9146f05be 100644
  
  		len = min(count, PM_ENTRY_BYTES * pm.pos);
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index bd07f0f4f06b..be212d81b87b 100644
+index 8fde658fdb11..d429d4cb0aef 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
 @@ -12,12 +12,19 @@
@@ -2021,6 +1998,33 @@ index 29786598c2b5..4c4712fefeed 100644
  }
  EXPORT_SYMBOL(vfs_statfs);
  
+diff --git a/fs/super.c b/fs/super.c
+index 31b6aab9a480..c238216f1c13 100644
+--- a/fs/super.c
++++ b/fs/super.c
+@@ -37,8 +37,22 @@
+ #include <linux/lockdep.h>
+ #include <linux/user_namespace.h>
+ #include <linux/fs_context.h>
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++#include <linux/susfs_def.h>
++#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++
+ #include "internal.h"
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++extern bool susfs_is_current_ksu_domain(void);
++extern bool susfs_is_boot_completed_triggered;
++
++static DEFINE_IDA(susfs_ksu_mnt_group_ida);
++static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
++
++#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
++#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++
+ static int thaw_super_locked(struct super_block *sb);
+ 
+ static LIST_HEAD(super_blocks);
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
 index 000000000000..dd6b149d83ed
@@ -3021,21 +3025,21 @@ index 000000000000..dd6b149d83ed
 +//void __init susfs_exit(void)
 +
 diff --git a/include/linux/mount.h b/include/linux/mount.h
-index adcc8f01c316..09d562ee4271 100644
+index 538b74be5d77..d0808c107b76 100644
 --- a/include/linux/mount.h
 +++ b/include/linux/mount.h
-@@ -72,7 +72,11 @@ struct vfsmount {
+@@ -74,7 +74,11 @@ struct vfsmount {
  	ANDROID_KABI_RESERVE(1);
  	ANDROID_KABI_RESERVE(2);
  	ANDROID_KABI_RESERVE(3);
 +#ifdef CONFIG_KSU_SUSFS
-+	ANDROID_KABI_USE(4, u64 susfs_mnt_id_backup);
++       ANDROID_KABI_USE(4, u64 susfs_mnt_id_backup);
 +#else
  	ANDROID_KABI_RESERVE(4);
 +#endif
- 	void *data;
  } __randomize_layout;
  
+ struct file; /* forward dec */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
 index 000000000000..e8c901d484d6
@@ -3358,10 +3362,10 @@ index 000000000000..d53e5a27ad03
 +
 +#endif // #ifndef KSU_SUSFS_DEF_H
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
-index c37719c4ea4a..c93048451a60 100644
+index b8ec1dbd1be5..acf7e97435ed 100644
 --- a/kernel/kallsyms.c
 +++ b/kernel/kallsyms.c
-@@ -664,6 +664,10 @@ static void s_stop(struct seq_file *m, void *p)
+@@ -634,6 +634,10 @@ static void s_stop(struct seq_file *m, void *p)
  {
  }
  
@@ -3372,13 +3376,13 @@ index c37719c4ea4a..c93048451a60 100644
  static int s_show(struct seq_file *m, void *p)
  {
  	void *value;
-@@ -687,8 +691,36 @@ static int s_show(struct seq_file *m, void *p)
+@@ -657,8 +661,36 @@ static int s_show(struct seq_file *m, void *p)
  		seq_printf(m, "%px %c %s\t[%s]\n", value,
  			   type, iter->name, iter->module_name);
  	} else
 +#ifndef CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
- 		seq_printf(m, "%px %c %s\n", value,
- 			   iter->type, iter->name);
++		seq_printf(m, "%px %c %s\n", value,
++			   iter->type, iter->name);
 +#else
 +	{
 +		if (susfs_starts_with(iter->name, "ksu_") ||
@@ -3402,8 +3406,8 @@ index c37719c4ea4a..c93048451a60 100644
 +		{
 +			return 0;
 +		}
-+		seq_printf(m, "%px %c %s\n", value,
-+			   iter->type, iter->name);
+ 		seq_printf(m, "%px %c %s\n", value,
+ 			   iter->type, iter->name);
 +	}
 +#endif
  	return 0;
