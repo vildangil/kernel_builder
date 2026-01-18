@@ -36,11 +36,11 @@ on: # [push]
       ZREPO:
         description: 'zipper repo'
         required: false
-        default: 'https://github.com/Sakurajima07/AnyKernel3-blossom'
+        default: 'https://github.com/Sakurajima07/AnyKernel3_blossom'
       ZBRANCH:
         description: 'zipper branch'
         required: false
-        default: 'enanan'
+        default: 'main'
       KSU:
         description: 'if dont want ksu then leave blank'
         required: false
