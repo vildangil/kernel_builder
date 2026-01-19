@@ -1,36 +1,32 @@
-From 9879bba2558b3407dd9eb227bb5c1c817164e1f4 Mon Sep 17 00:00:00 2001
+From 5ede90ca469dafc0ea4359c63d606097c3cdc66e Mon Sep 17 00:00:00 2001
 From: zyexro <zyexro@proton.me>
-Date: Sun, 18 Jan 2026 17:23:02 +0100
-Subject: [PATCH] fs: Integrate SuSFS feature v2.0.0 (20251229)
+Date: Mon, 19 Jan 2026 15:46:16 +0100
+Subject: [PATCH] BACKPORT: SuSFS v2.0.0
 
-Co-authored-by: simonpunk <simonpunk2016@gmail.com>
-Co-authored-by: JackA1ltman <cs2dtzq@163.com>
-Signed-off-by: sakana164 <76257039+sakana164@users.noreply.github.com>
 Signed-off-by: zyexro <zyexro@proton.me>
 ---
  fs/Makefile               |   2 +
  fs/namei.c                | 350 +++++++++++++-
- fs/namespace.c            | 222 ++++++++-
+ fs/namespace.c            | 235 ++++++++-
  fs/notify/fdinfo.c        |  53 ++
  fs/overlayfs/inode.c      |   1 -
  fs/overlayfs/readdir.c    |   1 +
  fs/proc/base.c            |  29 ++
  fs/proc/cmdline.c         |  10 +
  fs/proc/fd.c              |  18 +
- fs/proc/task_mmu.c        |  93 ++++
+ fs/proc/task_mmu.c        |  92 ++++
  fs/proc_namespace.c       |  25 +
  fs/readdir.c              | 283 ++++++++++-
  fs/stat.c                 |  18 +
  fs/statfs.c               |  16 +
- fs/super.c                |  14 +
- fs/susfs.c                | 993 ++++++++++++++++++++++++++++++++++++++
+ fs/susfs.c                | 995 ++++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |   4 +
- include/linux/susfs.h     | 222 +++++++++
+ include/linux/susfs.h     | 221 +++++++++
  include/linux/susfs_def.h |  87 ++++
  kernel/kallsyms.c         |  32 ++
- kernel/sys.c              |   7 +
+ kernel/sys.c              |   6 +
  security/selinux/avc.c    |  20 +
- 22 files changed, 2494 insertions(+), 6 deletions(-)
+ 21 files changed, 2492 insertions(+), 6 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -649,10 +645,34 @@ index ea9e472179d7..94bdc2b77318 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index b11e914c2ae5..52d53659c768 100644
+index af014d698b38..4d96579c00fb 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -109,6 +109,18 @@ static int mnt_alloc_id(struct mount *mnt)
+@@ -27,10 +27,23 @@
+ #include <linux/task_work.h>
+ #include <linux/sched/task.h>
+ #include <linux/fs_context.h>
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++#include <linux/susfs_def.h>
++#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+ 
+ #include "pnode.h"
+ #include "internal.h"
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++extern bool susfs_is_current_ksu_domain(void);
++extern bool susfs_is_boot_completed_triggered;
++
++static DEFINE_IDA(susfs_ksu_mnt_group_ida);
++static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
++
++#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */                             
++#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++
+ /* Maximum number of mounts in a mount namespace */
+ unsigned int sysctl_mount_max __read_mostly = 100000;
+ 
+@@ -109,6 +122,18 @@ static int mnt_alloc_id(struct mount *mnt)
  
  static void mnt_free_id(struct mount *mnt)
  {
@@ -671,7 +691,7 @@ index b11e914c2ae5..52d53659c768 100644
  	ida_free(&mnt_id_ida, mnt->mnt_id);
  }
  
-@@ -117,7 +129,23 @@ static void mnt_free_id(struct mount *mnt)
+@@ -117,7 +142,23 @@ static void mnt_free_id(struct mount *mnt)
   */
  static int mnt_alloc_group_id(struct mount *mnt)
  {
@@ -695,7 +715,7 @@ index b11e914c2ae5..52d53659c768 100644
  
  	if (res < 0)
  		return res;
-@@ -130,6 +158,22 @@ static int mnt_alloc_group_id(struct mount *mnt)
+@@ -130,6 +171,22 @@ static int mnt_alloc_group_id(struct mount *mnt)
   */
  void mnt_release_group_id(struct mount *mnt)
  {
@@ -718,7 +738,7 @@ index b11e914c2ae5..52d53659c768 100644
  	ida_free(&mnt_group_ida, mnt->mnt_group_id);
  	mnt->mnt_group_id = 0;
  }
-@@ -175,6 +219,113 @@ static void drop_mountpoint(struct fs_pin *p)
+@@ -175,6 +232,113 @@ static void drop_mountpoint(struct fs_pin *p)
  	mntput(&m->mnt);
  }
  
@@ -832,7 +852,7 @@ index b11e914c2ae5..52d53659c768 100644
  static struct mount *alloc_vfsmnt(const char *name)
  {
  	struct mount *mnt = kmem_cache_zalloc(mnt_cache, GFP_KERNEL);
-@@ -182,6 +333,7 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -182,6 +346,7 @@ static struct mount *alloc_vfsmnt(const char *name)
  		int err;
  
  		err = mnt_alloc_id(mnt);
@@ -840,7 +860,7 @@ index b11e914c2ae5..52d53659c768 100644
  		if (err)
  			goto out_free_cache;
  
-@@ -200,6 +352,10 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -200,6 +365,10 @@ static struct mount *alloc_vfsmnt(const char *name)
  #else
  		mnt->mnt_count = 1;
  		mnt->mnt_writers = 0;
@@ -851,41 +871,41 @@ index b11e914c2ae5..52d53659c768 100644
  #endif
  		mnt->mnt.data = NULL;
  
-@@ -1039,7 +1195,33 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1039,7 +1208,33 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	// We won't check it anymore if boot-completed stage is triggered.
-+	if (susfs_is_boot_completed_triggered) {
-+		goto skip_checking_for_ksu_proc;
-+	}
-+	// First we must check for ksu process because of magic mount
-+	if (susfs_is_current_ksu_domain()) {
++       // We won't check it anymore if boot-completed stage is triggered.
++       if (susfs_is_boot_completed_triggered) {
++               goto skip_checking_for_ksu_proc;
++       }
++       // First we must check for ksu process because of magic mount
++       if (susfs_is_current_ksu_domain()) {                                            
 +		// if it is unsharing, we reuse the old->mnt_id
-+		if (flag & CL_COPY_MNT_NS) {
-+			mnt = susfs_reuse_sus_vfsmnt(old->mnt_devname, old->mnt_id);
-+			goto bypass_orig_flow;
-+		}
++               if (flag & CL_COPY_MNT_NS) {
++                       mnt = susfs_reuse_sus_vfsmnt(old->mnt_devname, old->mnt_id);
++                       goto bypass_orig_flow;
++               }                                                                       
 +		// else we just go assign fake mnt_id
-+		mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
-+		goto bypass_orig_flow;
-+	}
++               mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
++               goto bypass_orig_flow;
++       }                                                                               
 +skip_checking_for_ksu_proc:
-+	// Lastly for other processes of which old->mnt_id == DEFAULT_KSU_MNT_ID, go assign fake mnt_id
-+	if (old->mnt_id == DEFAULT_KSU_MNT_ID) {
-+		mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
-+		goto bypass_orig_flow;
-+	}
++       // Lastly for other processes of which old->mnt_id == DEFAULT_KSU_MNT_ID, go assign fake mnt_id
++       if (old->mnt_id == DEFAULT_KSU_MNT_ID) {
++               mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
++               goto bypass_orig_flow;
++       }
 +#endif
  	mnt = alloc_vfsmnt(old->mnt_devname);
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+bypass_orig_flow:
++bypass_orig_flow:                                                                      
 +#endif
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1091,6 +1273,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1091,6 +1286,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -893,7 +913,7 @@ index b11e914c2ae5..52d53659c768 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1790,7 +1973,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1790,7 +1986,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  					int flag)
  {
  	struct mount *res, *p, *q, *r, *parent;
@@ -902,7 +922,7 @@ index b11e914c2ae5..52d53659c768 100644
  	if (!(flag & CL_COPY_UNBINDABLE) && IS_MNT_UNBINDABLE(mnt))
  		return ERR_PTR(-EINVAL);
  
-@@ -1806,6 +1989,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1806,6 +2002,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -910,7 +930,7 @@ index b11e914c2ae5..52d53659c768 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1835,6 +2019,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1835,6 +2032,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  			q = clone_mnt(p, p->mnt.mnt_root, flag);
  			if (IS_ERR(q))
  				goto out;
@@ -918,7 +938,7 @@ index b11e914c2ae5..52d53659c768 100644
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
  			attach_mnt(q, parent, p->mnt_mp);
-@@ -3074,6 +3259,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3073,6 +3271,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -928,7 +948,7 @@ index b11e914c2ae5..52d53659c768 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3090,6 +3278,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3089,6 +3290,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	 */
  	p = old;
  	q = new;
@@ -936,7 +956,7 @@ index b11e914c2ae5..52d53659c768 100644
  	while (p) {
  		q->mnt_ns = new_ns;
  		new_ns->mounts++;
-@@ -3110,6 +3299,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3109,6 +3311,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -944,7 +964,7 @@ index b11e914c2ae5..52d53659c768 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3653,3 +3843,33 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3652,3 +3855,33 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -1232,21 +1252,20 @@ index 81882a13212d..57c060847ffa 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index 7f240116d75b..2db9146f05be 100644
+index 7f240116d75b..25f86a24d875 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
-@@ -20,6 +20,10 @@
+@@ -20,6 +20,9 @@
  #include <linux/uaccess.h>
  #include <linux/mm_inline.h>
  #include <linux/pkeys.h>
-+#include <linux/ctype.h>
 +#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
 +#include <linux/susfs_def.h>
 +#endif
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -490,6 +494,10 @@ static int show_vma_header_prefix(struct seq_file *m, unsigned long start,
+@@ -490,6 +493,10 @@ static int show_vma_header_prefix(struct seq_file *m, unsigned long start,
  	return 0;
  }
  
@@ -1257,7 +1276,7 @@ index 7f240116d75b..2db9146f05be 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -504,8 +512,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -504,8 +511,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1293,7 +1312,7 @@ index 7f240116d75b..2db9146f05be 100644
  		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
  	}
  
-@@ -1014,6 +1049,35 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -1014,6 +1048,35 @@ static int show_smap(struct seq_file *m, void *v)
  
  	memset(&mss, 0, sizeof(mss));
  
@@ -1329,7 +1348,7 @@ index 7f240116d75b..2db9146f05be 100644
  	smap_gather_stats(vma, &mss);
  
  	show_map_vma(m, vma);
-@@ -1033,6 +1097,11 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -1033,6 +1096,11 @@ static int show_smap(struct seq_file *m, void *v)
  
  	if (arch_pkeys_enabled())
  		seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
@@ -1341,18 +1360,18 @@ index 7f240116d75b..2db9146f05be 100644
  	show_smap_vma_flags(m, vma);
  
  	m_cache_vma(m, vma);
-@@ -1068,7 +1137,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+@@ -1068,7 +1136,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
  	hold_task_mempolicy(priv);
  
  	for (vma = priv->mm->mmap; vma;) {
-+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP                                       
 +		if (vma->vm_file &&
-+			unlikely(file_inode(vma->vm_file)->i_mapping->flags & BIT_SUS_MAPS) &&
-+			susfs_is_current_proc_umounted())
-+		{
++                       unlikely(file_inode(vma->vm_file)->i_mapping->flags & BIT_SUS_MAPS) &&
++                       susfs_is_current_proc_umounted())
++               {                                                                       
 +			memset(&mss, 0, sizeof(mss));
-+			goto bypass_orig_flow;
-+		}
++                       goto bypass_orig_flow;
++               }
 +#endif
  		smap_gather_stats(vma, &mss);
 +#ifdef CONFIG_KSU_SUSFS_SUS_MAP
@@ -1361,7 +1380,7 @@ index 7f240116d75b..2db9146f05be 100644
  		last_vma_end = vma->vm_end;
  
  		/*
-@@ -1775,6 +1856,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1775,6 +1855,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  	unsigned long start_vaddr;
  	unsigned long end_vaddr;
  	int ret = 0, copied = 0;
@@ -1371,7 +1390,7 @@ index 7f240116d75b..2db9146f05be 100644
  
  	if (!mm || !mmget_not_zero(mm))
  		goto out;
-@@ -1835,6 +1919,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1835,6 +1918,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  			goto out_free;
  		ret = walk_page_range(start_vaddr, end, &pagemap_walk);
  		up_read(&mm->mmap_sem);
@@ -1388,7 +1407,7 @@ index 7f240116d75b..2db9146f05be 100644
  
  		len = min(count, PM_ENTRY_BYTES * pm.pos);
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index 8fde658fdb11..d429d4cb0aef 100644
+index 5b8d065fa83c..7561e50310cf 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
 @@ -12,12 +12,19 @@
@@ -1998,39 +2017,12 @@ index 29786598c2b5..4c4712fefeed 100644
  }
  EXPORT_SYMBOL(vfs_statfs);
  
-diff --git a/fs/super.c b/fs/super.c
-index 31b6aab9a480..c238216f1c13 100644
---- a/fs/super.c
-+++ b/fs/super.c
-@@ -37,8 +37,22 @@
- #include <linux/lockdep.h>
- #include <linux/user_namespace.h>
- #include <linux/fs_context.h>
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+#include <linux/susfs_def.h>
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+
- #include "internal.h"
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+extern bool susfs_is_current_ksu_domain(void);
-+extern bool susfs_is_boot_completed_triggered;
-+
-+static DEFINE_IDA(susfs_ksu_mnt_group_ida);
-+static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
-+
-+#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+
- static int thaw_super_locked(struct super_block *sb);
- 
- static LIST_HEAD(super_blocks);
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000000..dd6b149d83ed
+index 000000000000..e6bf0aebad15
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,993 @@
+@@ -0,0 +1,995 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -2402,7 +2394,9 @@ index 000000000000..dd6b149d83ed
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +static DEFINE_SPINLOCK(susfs_spin_lock_sus_mount);
-+bool susfs_hide_sus_mnts_for_all_procs = true; // hide sus mounts for all processes by default
++// - Default to false now so zygisk can pick up the sus mounts without the need to turn it off manually in post-fs-data stage
++//   otherwise user needs to turn it on in post-fs-data stage and turn it off in boot-completed stage
++bool susfs_hide_sus_mnts_for_all_procs = false;
 +
 +void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info) {
 +	struct st_susfs_hide_sus_mnts_for_all_procs info = {0};
@@ -2868,7 +2862,7 @@ index 000000000000..dd6b149d83ed
 +
 +/* susfs avc log spoofing */
 +static DEFINE_SPINLOCK(susfs_spin_lock_set_avc_log_spoofing);
-+bool susfs_is_avc_log_spoofing_enabled = false;
++extern bool susfs_is_avc_log_spoofing_enabled;
 +
 +void susfs_set_avc_log_spoofing(void __user **user_info) {
 +	struct st_susfs_avc_log_spoofing info = {0};
@@ -3042,10 +3036,10 @@ index 538b74be5d77..d0808c107b76 100644
  struct file; /* forward dec */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000000..e8c901d484d6
+index 000000000000..e681536ed46e
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,221 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3068,7 +3062,6 @@ index 000000000000..e8c901d484d6
 +/*********/
 +#define getname_safe(name) (name == NULL ? ERR_PTR(-EINVAL) : getname(name))
 +#define putname_safe(name) (IS_ERR(name) ? NULL : putname(name))
-+extern bool susfs_is_avc_log_spoofing_enabled;
 +
 +/**********/
 +/* STRUCT */
@@ -3414,26 +3407,25 @@ index b8ec1dbd1be5..acf7e97435ed 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index 4b221434db4b..ad7c69ce7503 100644
+index 4b221434db4b..c6f69b059e38 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -1262,6 +1262,10 @@ static int override_version(struct new_utsname __user *name)
+@@ -1262,6 +1262,9 @@ static int override_version(struct new_utsname __user *name)
  #endif
  }
  
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
-+extern void susfs_spoof_uname(struct new_utsname* tmp);
++extern void susfs_spoof_uname(struct new_utsname* tmp); 
 +#endif
-+
  SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  {
  	struct new_utsname tmp;
-@@ -1276,6 +1280,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
+@@ -1276,6 +1279,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  		pr_debug("fake uname: %s release=%s\n",
  			 current->comm, tmp.release);
  	}
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
-+	susfs_spoof_uname(&tmp);
++       susfs_spoof_uname(&tmp);
 +#endif
  	up_read(&uts_sem);
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
