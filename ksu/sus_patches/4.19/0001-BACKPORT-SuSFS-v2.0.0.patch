@@ -1,4 +1,4 @@
-From 5ede90ca469dafc0ea4359c63d606097c3cdc66e Mon Sep 17 00:00:00 2001
+From 271b98d0a37ee73e2a96dcd95e5185f1de14e3af Mon Sep 17 00:00:00 2001
 From: zyexro <zyexro@proton.me>
 Date: Mon, 19 Jan 2026 15:46:16 +0100
 Subject: [PATCH] BACKPORT: SuSFS v2.0.0
@@ -19,14 +19,14 @@ Signed-off-by: zyexro <zyexro@proton.me>
  fs/readdir.c              | 283 ++++++++++-
  fs/stat.c                 |  18 +
  fs/statfs.c               |  16 +
- fs/susfs.c                | 995 ++++++++++++++++++++++++++++++++++++++
+ fs/susfs.c                | 996 ++++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |   4 +
- include/linux/susfs.h     | 221 +++++++++
+ include/linux/susfs.h     | 223 +++++++++
  include/linux/susfs_def.h |  87 ++++
  kernel/kallsyms.c         |  32 ++
  kernel/sys.c              |   6 +
  security/selinux/avc.c    |  20 +
- 21 files changed, 2492 insertions(+), 6 deletions(-)
+ 21 files changed, 2495 insertions(+), 6 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -2019,10 +2019,10 @@ index 29786598c2b5..4c4712fefeed 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000000..e6bf0aebad15
+index 000000000000..38f1e0e365e2
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,995 @@
+@@ -0,0 +1,996 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -2862,7 +2862,8 @@ index 000000000000..e6bf0aebad15
 +
 +/* susfs avc log spoofing */
 +static DEFINE_SPINLOCK(susfs_spin_lock_set_avc_log_spoofing);
-+extern bool susfs_is_avc_log_spoofing_enabled;
++bool susfs_is_avc_log_spoofing_enabled = false;
++EXPORT_SYMBOL(susfs_is_avc_log_spoofing_enabled);
 +
 +void susfs_set_avc_log_spoofing(void __user **user_info) {
 +	struct st_susfs_avc_log_spoofing info = {0};
@@ -3036,10 +3037,10 @@ index 538b74be5d77..d0808c107b76 100644
  struct file; /* forward dec */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000000..e681536ed46e
+index 000000000000..b4dc782e1c2d
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,221 @@
+@@ -0,0 +1,223 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3062,6 +3063,8 @@ index 000000000000..e681536ed46e
 +/*********/
 +#define getname_safe(name) (name == NULL ? ERR_PTR(-EINVAL) : getname(name))
 +#define putname_safe(name) (IS_ERR(name) ? NULL : putname(name))
++
++extern bool susfs_is_avc_log_spoofing_enabled;
 +
 +/**********/
 +/* STRUCT */
@@ -3431,17 +3434,24 @@ index 4b221434db4b..c6f69b059e38 100644
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
 diff --git a/security/selinux/avc.c b/security/selinux/avc.c
-index d569852e5761..a6442cf6169d 100644
+index d569852e5761..b2e24eb9540b 100644
 --- a/security/selinux/avc.c
 +++ b/security/selinux/avc.c
-@@ -165,6 +165,11 @@ static void avc_dump_av(struct audit_buffer *ab, u16 tclass, u32 av)
+@@ -29,6 +29,7 @@
+ #include <linux/ip.h>
+ #include <linux/audit.h>
+ #include <linux/ipv6.h>
++#include <linux/susfs.h>
+ #include <net/ipv6.h>
+ #include "avc.h"
+ #include "avc_ss.h"
+@@ -165,6 +166,10 @@ static void avc_dump_av(struct audit_buffer *ab, u16 tclass, u32 av)
  
  	audit_log_format(ab, " }");
  }
 +#ifdef CONFIG_KSU_SUSFS
 +extern u32 susfs_ksu_sid;
 +extern u32 susfs_priv_app_sid;
-+bool susfs_is_avc_log_spoofing_enabled = false;
 +#endif
  
  /**
