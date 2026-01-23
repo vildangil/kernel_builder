@@ -1,8 +1,9 @@
-From 271b98d0a37ee73e2a96dcd95e5185f1de14e3af Mon Sep 17 00:00:00 2001
-From: zyexro <zyexro@proton.me>
-Date: Mon, 19 Jan 2026 15:46:16 +0100
-Subject: [PATCH] BACKPORT: SuSFS v2.0.0
+From 2888f100ddde321e8506e03c42a747959ab9e638 Mon Sep 17 00:00:00 2001
+From: simonpunk <simonpunk2016@gmail.com>
+Date: Fri, 23 Jan 2026 13:42:48 +0100
+Subject: [PATCH] BACKPORT: KernelSU: Implement SuSFS v2.0.0
 
+Signed-off-by: JackA1ltman <cs2dtzq@163.com>
 Signed-off-by: zyexro <zyexro@proton.me>
 ---
  fs/Makefile               |   2 +
@@ -16,7 +17,7 @@ Signed-off-by: zyexro <zyexro@proton.me>
  fs/proc/fd.c              |  18 +
  fs/proc/task_mmu.c        |  92 ++++
  fs/proc_namespace.c       |  25 +
- fs/readdir.c              | 283 ++++++++++-
+ fs/readdir.c              | 294 ++++++++++-
  fs/stat.c                 |  18 +
  fs/statfs.c               |  16 +
  fs/susfs.c                | 996 ++++++++++++++++++++++++++++++++++++++
@@ -26,7 +27,7 @@ Signed-off-by: zyexro <zyexro@proton.me>
  kernel/kallsyms.c         |  32 ++
  kernel/sys.c              |   6 +
  security/selinux/avc.c    |  20 +
- 21 files changed, 2495 insertions(+), 6 deletions(-)
+ 21 files changed, 2505 insertions(+), 7 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1122,7 +1123,7 @@ index 47710c1a8d4f..f81e7384857f 100644
  	if (IS_ERR(realfile)) {
  		kfree(od);
 diff --git a/fs/proc/base.c b/fs/proc/base.c
-index 5128e3f94666..4a77041c066f 100644
+index 3fe832a5dff3..9a740773e4da 100644
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
 @@ -95,6 +95,9 @@
@@ -1470,7 +1471,7 @@ index 5b8d065fa83c..7561e50310cf 100644
  	if (sb->s_op->show_devname) {
  		seq_puts(m, "device ");
 diff --git a/fs/readdir.c b/fs/readdir.c
-index 3c5ce8a0ddc9..fea52753f475 100644
+index 3c5ce8a0ddc9..c2a0477e0a24 100644
 --- a/fs/readdir.c
 +++ b/fs/readdir.c
 @@ -21,6 +21,15 @@
@@ -1540,7 +1541,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	buf->result++;
  	dirent = buf->dirent;
  	if (!access_ok(VERIFY_WRITE, dirent,
-@@ -167,10 +206,34 @@ SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
+@@ -167,10 +206,36 @@ SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
  		.ctx.actor = fillonedir,
  		.dirent = dirent
  	};
@@ -1553,8 +1554,9 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +	buf.sb = f.file->f_inode->i_sb;
-+	inode = f.file->f_path.dentry->d_inode;
-+	if (f.file->f_path.dentry && inode) {
++	if (f.file->f_path.dentry) {
++	 inode = f.file->f_path.dentry->d_inode;
++	 if (inode) {
 +		if (susfs_is_base_dentry_android_data_dir(f.file->f_path.dentry))
 +		{
 +			buf.is_base_dentry_android_data_root_dir = true;
@@ -1567,6 +1569,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
 +			buf.is_base_dentry_android_data_root_dir = false;
 +			goto orig_flow;
 +		}
++	 }
 +	}
 +	buf.is_base_dentry_android_data_root_dir = false;
 +	buf.is_base_dentry_sdcard_root_dir = false;
@@ -1575,7 +1578,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (buf.result)
  		error = buf.result;
-@@ -195,6 +258,11 @@ struct linux_dirent {
+@@ -195,6 +260,11 @@ struct linux_dirent {
  struct getdents_callback {
  	struct dir_context ctx;
  	struct linux_dirent __user * current_dir;
@@ -1587,7 +1590,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	struct linux_dirent __user * previous;
  	int count;
  	int error;
-@@ -209,6 +277,9 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
+@@ -209,6 +279,9 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
  	unsigned long d_ino;
  	int reclen = ALIGN(offsetof(struct linux_dirent, d_name) + namlen + 2,
  		sizeof(long));
@@ -1597,7 +1600,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  
  	buf->error = verify_dirent_name(name, namlen);
  	if (unlikely(buf->error))
-@@ -221,6 +292,28 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
+@@ -221,6 +294,28 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
  		buf->error = -EOVERFLOW;
  		return -EOVERFLOW;
  	}
@@ -1626,7 +1629,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	dirent = buf->previous;
  	if (dirent) {
  		if (signal_pending(current))
-@@ -260,6 +353,9 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -260,6 +355,9 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
  		.current_dir = dirent
  	};
  	int error;
@@ -1636,14 +1639,15 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  
  	if (!access_ok(VERIFY_WRITE, dirent, count))
  		return -EFAULT;
-@@ -268,6 +364,27 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -268,6 +366,29 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
  	if (!f.file)
  		return -EBADF;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +	buf.sb = f.file->f_inode->i_sb;
-+	inode = f.file->f_path.dentry->d_inode;
-+	if (f.file->f_path.dentry && inode) {
++	if (f.file->f_path.dentry) {
++	 inode = f.file->f_path.dentry->d_inode;
++	 if (inode) {
 +		if (susfs_is_base_dentry_android_data_dir(f.file->f_path.dentry))
 +		{
 +			buf.is_base_dentry_android_data_root_dir = true;
@@ -1656,6 +1660,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
 +			buf.is_base_dentry_android_data_root_dir = false;
 +			goto orig_flow;
 +		}
++ 	 }
 +	}
 +	buf.is_base_dentry_android_data_root_dir = false;
 +	buf.is_base_dentry_sdcard_root_dir = false;
@@ -1664,7 +1669,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
  		error = buf.error;
-@@ -285,6 +402,11 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -285,6 +406,11 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
  struct getdents_callback64 {
  	struct dir_context ctx;
  	struct linux_dirent64 __user * current_dir;
@@ -1676,7 +1681,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	struct linux_dirent64 __user * previous;
  	int count;
  	int error;
-@@ -298,6 +420,9 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
+@@ -298,6 +424,9 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
  		container_of(ctx, struct getdents_callback64, ctx);
  	int reclen = ALIGN(offsetof(struct linux_dirent64, d_name) + namlen + 1,
  		sizeof(u64));
@@ -1686,7 +1691,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  
  	buf->error = verify_dirent_name(name, namlen);
  	if (unlikely(buf->error))
-@@ -309,6 +434,28 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
+@@ -309,6 +438,28 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
  	if (dirent) {
  		if (signal_pending(current))
  			return -EINTR;
@@ -1715,7 +1720,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  		if (__put_user(offset, &dirent->d_off))
  			goto efault;
  	}
-@@ -346,6 +493,9 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
+@@ -346,6 +497,9 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
  		.current_dir = dirent
  	};
  	int error;
@@ -1725,14 +1730,15 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  
  	if (!access_ok(VERIFY_WRITE, dirent, count))
  		return -EFAULT;
-@@ -354,6 +504,27 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
+@@ -354,6 +508,29 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
  	if (!f.file)
  		return -EBADF;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +	buf.sb = f.file->f_inode->i_sb;
-+	inode = f.file->f_path.dentry->d_inode;
-+	if (f.file->f_path.dentry && inode) {
++	 if (f.file->f_path.dentry) {
++	 inode = f.file->f_path.dentry->d_inode;
++	 if (inode) {
 +		if (susfs_is_base_dentry_android_data_dir(f.file->f_path.dentry))
 +		{
 +			buf.is_base_dentry_android_data_root_dir = true;
@@ -1745,6 +1751,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
 +			buf.is_base_dentry_android_data_root_dir = false;
 +			goto orig_flow;
 +		}
++	 }
 +	}
 +	buf.is_base_dentry_android_data_root_dir = false;
 +	buf.is_base_dentry_sdcard_root_dir = false;
@@ -1753,7 +1760,15 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
  		error = buf.error;
-@@ -387,6 +558,11 @@ struct compat_old_linux_dirent {
+@@ -369,7 +546,6 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
+ 	return error;
+ }
+ 
+-
+ SYSCALL_DEFINE3(getdents64, unsigned int, fd,
+ 		struct linux_dirent64 __user *, dirent, unsigned int, count)
+ {
+@@ -387,6 +563,11 @@ struct compat_old_linux_dirent {
  struct compat_readdir_callback {
  	struct dir_context ctx;
  	struct compat_old_linux_dirent __user *dirent;
@@ -1765,7 +1780,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	int result;
  };
  
-@@ -398,9 +574,13 @@ static int compat_fillonedir(struct dir_context *ctx, const char *name,
+@@ -398,9 +579,13 @@ static int compat_fillonedir(struct dir_context *ctx, const char *name,
  		container_of(ctx, struct compat_readdir_callback, ctx);
  	struct compat_old_linux_dirent __user *dirent;
  	compat_ulong_t d_ino;
@@ -1779,7 +1794,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	buf->result = verify_dirent_name(name, namlen);
  	if (buf->result < 0)
  		return buf->result;
-@@ -409,6 +589,28 @@ static int compat_fillonedir(struct dir_context *ctx, const char *name,
+@@ -409,6 +594,28 @@ static int compat_fillonedir(struct dir_context *ctx, const char *name,
  		buf->result = -EOVERFLOW;
  		return -EOVERFLOW;
  	}
@@ -1808,7 +1823,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	buf->result++;
  	dirent = buf->dirent;
  	if (!access_ok(VERIFY_WRITE, dirent,
-@@ -436,10 +638,33 @@ COMPAT_SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
+@@ -436,10 +643,35 @@ COMPAT_SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
  		.ctx.actor = compat_fillonedir,
  		.dirent = dirent
  	};
@@ -1821,8 +1836,9 @@ index 3c5ce8a0ddc9..fea52753f475 100644
 -
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +	buf.sb = f.file->f_inode->i_sb;
-+	inode = f.file->f_path.dentry->d_inode;
-+	if (f.file->f_path.dentry && inode) {
++	 if (f.file->f_path.dentry) {
++	  inode = f.file->f_path.dentry->d_inode;
++	  if (inode) {
 +		if (susfs_is_base_dentry_android_data_dir(f.file->f_path.dentry))
 +		{
 +			buf.is_base_dentry_android_data_root_dir = true;
@@ -1835,6 +1851,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
 +			buf.is_base_dentry_android_data_root_dir = false;
 +			goto orig_flow;
 +		}
++	 }
 +	}
 +	buf.is_base_dentry_android_data_root_dir = false;
 +	buf.is_base_dentry_sdcard_root_dir = false;
@@ -1843,7 +1860,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (buf.result)
  		error = buf.result;
-@@ -458,6 +683,11 @@ struct compat_linux_dirent {
+@@ -458,6 +690,11 @@ struct compat_linux_dirent {
  struct compat_getdents_callback {
  	struct dir_context ctx;
  	struct compat_linux_dirent __user *current_dir;
@@ -1855,7 +1872,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	struct compat_linux_dirent __user *previous;
  	int count;
  	int error;
-@@ -472,10 +702,14 @@ static int compat_filldir(struct dir_context *ctx, const char *name, int namlen,
+@@ -472,10 +709,14 @@ static int compat_filldir(struct dir_context *ctx, const char *name, int namlen,
  	compat_ulong_t d_ino;
  	int reclen = ALIGN(offsetof(struct compat_linux_dirent, d_name) +
  		namlen + 2, sizeof(compat_long_t));
@@ -1870,7 +1887,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  	d_ino = ino;
  	if (sizeof(d_ino) < sizeof(ino) && d_ino != ino) {
  		buf->error = -EOVERFLOW;
-@@ -485,6 +719,28 @@ static int compat_filldir(struct dir_context *ctx, const char *name, int namlen,
+@@ -485,6 +726,28 @@ static int compat_filldir(struct dir_context *ctx, const char *name, int namlen,
  	if (dirent) {
  		if (signal_pending(current))
  			return -EINTR;
@@ -1899,7 +1916,7 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  		if (__put_user(offset, &dirent->d_off))
  			goto efault;
  	}
-@@ -520,6 +776,9 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -520,6 +783,9 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
  		.count = count
  	};
  	int error;
@@ -1909,15 +1926,16 @@ index 3c5ce8a0ddc9..fea52753f475 100644
  
  	if (!access_ok(VERIFY_WRITE, dirent, count))
  		return -EFAULT;
-@@ -527,7 +786,27 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
+@@ -527,7 +793,29 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
  	f = fdget_pos(fd);
  	if (!f.file)
  		return -EBADF;
 -
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +	buf.sb = f.file->f_inode->i_sb;
-+	inode = f.file->f_path.dentry->d_inode;
-+	if (f.file->f_path.dentry && inode) {
++	if (f.file->f_path.dentry) {
++	 inode = f.file->f_path.dentry->d_inode;
++	 if (inode) {
 +		if (susfs_is_base_dentry_android_data_dir(f.file->f_path.dentry))
 +		{
 +			buf.is_base_dentry_android_data_root_dir = true;
@@ -1930,7 +1948,8 @@ index 3c5ce8a0ddc9..fea52753f475 100644
 +			buf.is_base_dentry_android_data_root_dir = false;
 +			goto orig_flow;
 +		}
-+	}
++	 }
++	} 
 +	buf.is_base_dentry_android_data_root_dir = false;
 +	buf.is_base_dentry_sdcard_root_dir = false;
 +orig_flow:
@@ -2019,7 +2038,7 @@ index 29786598c2b5..4c4712fefeed 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000000..38f1e0e365e2
+index 000000000000..6d8b3ffd7908
 --- /dev/null
 +++ b/fs/susfs.c
 @@ -0,0 +1,996 @@
@@ -2045,7 +2064,7 @@ index 000000000000..38f1e0e365e2
 +extern bool susfs_is_current_ksu_domain(void);
 +
 +#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
-+bool susfs_is_log_enabled __read_mostly = true;
++bool susfs_is_log_enabled __read_mostly = false;
 +#define SUSFS_LOGI(fmt, ...) if (susfs_is_log_enabled) pr_info("susfs:[%u][%d][%s] " fmt, current_uid().val, current->pid, __func__, ##__VA_ARGS__)
 +#define SUSFS_LOGE(fmt, ...) if (susfs_is_log_enabled) pr_err("susfs:[%u][%d][%s]" fmt, current_uid().val, current->pid, __func__, ##__VA_ARGS__)
 +#else
