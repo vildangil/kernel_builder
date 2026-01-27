@@ -66,7 +66,7 @@ env:
   SUFFIX: ${{ github.event.inputs.SUFFIX }}
   zipper_repo: ${{ github.event.inputs.ZREPO }}
   zipper_branch: ${{ github.event.inputs.ZBRANCH }}
-  TZ: Asia/Ho_Chi_Minh
+  TZ: Africa/Tunis
 
 jobs:
   build:
