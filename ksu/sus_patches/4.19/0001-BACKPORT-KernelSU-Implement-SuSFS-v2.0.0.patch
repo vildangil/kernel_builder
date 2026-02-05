@@ -1,6 +1,6 @@
-From 168e9f27eda4be2572bc3410f8a21614b2cd18af Mon Sep 17 00:00:00 2001
+From e735a90ef6da50b48dc09dee64ea0fab4bd99ce0 Mon Sep 17 00:00:00 2001
 From: simonpunk <simonpunk2016@gmail.com>
-Date: Tue, 27 Jan 2026 20:17:34 +0100
+Date: Thu, 5 Feb 2026 22:03:58 +0100
 Subject: [PATCH] BACKPORT: KernelSU: Implement SuSFS v2.0.0
 
 Signed-off-by: zyexro <zyexro@proton.me>
@@ -645,7 +645,7 @@ index ea9e472179d7..94bdc2b77318 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 1c1d0b1e2355..5fd43b50a825 100644
+index e61f0a4874d9..c47798a7caaa 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -27,10 +27,23 @@
@@ -913,7 +913,7 @@ index 1c1d0b1e2355..5fd43b50a825 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1823,7 +2019,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1793,7 +1989,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  					int flag)
  {
  	struct mount *res, *p, *q, *r, *parent;
@@ -922,7 +922,7 @@ index 1c1d0b1e2355..5fd43b50a825 100644
  	if (!(flag & CL_COPY_UNBINDABLE) && IS_MNT_UNBINDABLE(mnt))
  		return ERR_PTR(-EINVAL);
  
-@@ -1839,6 +2035,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1809,6 +2005,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -930,7 +930,7 @@ index 1c1d0b1e2355..5fd43b50a825 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1868,6 +2065,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1838,6 +2035,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  			q = clone_mnt(p, p->mnt.mnt_root, flag);
  			if (IS_ERR(q))
  				goto out;
@@ -938,7 +938,7 @@ index 1c1d0b1e2355..5fd43b50a825 100644
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
  			attach_mnt(q, parent, p->mnt_mp);
-@@ -3106,6 +3304,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3095,6 +3293,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -948,7 +948,7 @@ index 1c1d0b1e2355..5fd43b50a825 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3122,6 +3323,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3111,6 +3312,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	 */
  	p = old;
  	q = new;
@@ -956,7 +956,7 @@ index 1c1d0b1e2355..5fd43b50a825 100644
  	while (p) {
  		q->mnt_ns = new_ns;
  		new_ns->mounts++;
-@@ -3142,6 +3344,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3131,6 +3333,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -964,7 +964,7 @@ index 1c1d0b1e2355..5fd43b50a825 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3685,3 +3888,33 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3676,3 +3879,33 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -1122,7 +1122,7 @@ index 47710c1a8d4f..f81e7384857f 100644
  	if (IS_ERR(realfile)) {
  		kfree(od);
 diff --git a/fs/proc/base.c b/fs/proc/base.c
-index a5a0d64fdaa8..a0219baad3a4 100644
+index 3fe832a5dff3..9a740773e4da 100644
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
 @@ -95,6 +95,9 @@
@@ -1168,7 +1168,7 @@ index a5a0d64fdaa8..a0219baad3a4 100644
  
  		if (write && copy_from_user(page, buf, this_len)) {
  			copied = -EFAULT;
-@@ -2236,6 +2258,13 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
+@@ -2230,6 +2252,13 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
  				vma = vma->vm_next) {
  			if (!vma->vm_file)
  				continue;
@@ -1252,7 +1252,7 @@ index 81882a13212d..57c060847ffa 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index 9ede16b0beb3..a0b3f78b28df 100644
+index 5cf3d8b98d3b..e06135a5238a 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -20,6 +20,9 @@
@@ -1265,8 +1265,8 @@ index 9ede16b0beb3..a0b3f78b28df 100644
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -507,6 +510,10 @@ static void show_vma_header_prefix_fake(struct seq_file *m,
- 		   MAJOR(dev), MINOR(dev), ino);
+@@ -490,6 +493,10 @@ static int show_vma_header_prefix(struct seq_file *m, unsigned long start,
+ 	return 0;
  }
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
@@ -1276,7 +1276,7 @@ index 9ede16b0beb3..a0b3f78b28df 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -521,8 +528,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -504,8 +511,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1310,9 +1310,9 @@ index 9ede16b0beb3..a0b3f78b28df 100644
 +bypass_orig_flow:
 +#endif
  		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
-         struct dentry *dentry = file->f_path.dentry;
-         if (dentry) {
-@@ -1047,6 +1081,35 @@ static int show_smap(struct seq_file *m, void *v)
+ 	}
+ 
+@@ -1014,6 +1048,35 @@ static int show_smap(struct seq_file *m, void *v)
  
  	memset(&mss, 0, sizeof(mss));
  
@@ -1348,7 +1348,7 @@ index 9ede16b0beb3..a0b3f78b28df 100644
  	smap_gather_stats(vma, &mss);
  
  	show_map_vma(m, vma);
-@@ -1066,6 +1129,11 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -1033,6 +1096,11 @@ static int show_smap(struct seq_file *m, void *v)
  
  	if (arch_pkeys_enabled())
  		seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
@@ -1360,7 +1360,7 @@ index 9ede16b0beb3..a0b3f78b28df 100644
  	show_smap_vma_flags(m, vma);
  
  	m_cache_vma(m, vma);
-@@ -1101,7 +1169,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+@@ -1068,7 +1136,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
  	hold_task_mempolicy(priv);
  
  	for (vma = priv->mm->mmap; vma;) {
@@ -1380,7 +1380,7 @@ index 9ede16b0beb3..a0b3f78b28df 100644
  		last_vma_end = vma->vm_end;
  
  		/*
-@@ -1808,6 +1888,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1779,6 +1859,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  	unsigned long start_vaddr;
  	unsigned long end_vaddr;
  	int ret = 0, copied = 0;
@@ -1390,7 +1390,7 @@ index 9ede16b0beb3..a0b3f78b28df 100644
  
  	if (!mm || !mmget_not_zero(mm))
  		goto out;
-@@ -1868,6 +1951,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1839,6 +1922,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  			goto out_free;
  		ret = walk_page_range(start_vaddr, end, &pagemap_walk);
  		up_read(&mm->mmap_sem);
@@ -1957,7 +1957,7 @@ index 3c5ce8a0ddc9..c2a0477e0a24 100644
  	if (error >= 0)
  		error = buf.error;
 diff --git a/fs/stat.c b/fs/stat.c
-index c4027f08abcd..7d957f882f3d 100644
+index 376543199b5a..a4376907ce7a 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,10 +17,17 @@
@@ -3376,10 +3376,10 @@ index 000000000000..d53e5a27ad03
 +
 +#endif // #ifndef KSU_SUSFS_DEF_H
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
-index b8ec1dbd1be5..acf7e97435ed 100644
+index c37719c4ea4a..c93048451a60 100644
 --- a/kernel/kallsyms.c
 +++ b/kernel/kallsyms.c
-@@ -634,6 +634,10 @@ static void s_stop(struct seq_file *m, void *p)
+@@ -664,6 +664,10 @@ static void s_stop(struct seq_file *m, void *p)
  {
  }
  
@@ -3390,13 +3390,13 @@ index b8ec1dbd1be5..acf7e97435ed 100644
  static int s_show(struct seq_file *m, void *p)
  {
  	void *value;
-@@ -657,8 +661,36 @@ static int s_show(struct seq_file *m, void *p)
+@@ -687,8 +691,36 @@ static int s_show(struct seq_file *m, void *p)
  		seq_printf(m, "%px %c %s\t[%s]\n", value,
  			   type, iter->name, iter->module_name);
  	} else
 +#ifndef CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-+		seq_printf(m, "%px %c %s\n", value,
-+			   iter->type, iter->name);
+ 		seq_printf(m, "%px %c %s\n", value,
+ 			   iter->type, iter->name);
 +#else
 +	{
 +		if (susfs_starts_with(iter->name, "ksu_") ||
@@ -3420,8 +3420,8 @@ index b8ec1dbd1be5..acf7e97435ed 100644
 +		{
 +			return 0;
 +		}
- 		seq_printf(m, "%px %c %s\n", value,
- 			   iter->type, iter->name);
++		seq_printf(m, "%px %c %s\n", value,
++			   iter->type, iter->name);
 +	}
 +#endif
  	return 0;
