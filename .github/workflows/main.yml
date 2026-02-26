@@ -20,7 +20,7 @@ on: # [push]
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/zyexro/niigo_kernel_xiaomi_blossom'
+        default: 'https://github.com/zyexro/sashimi_kernel_xiaomi_blossom'
       KBRANCH:
         description: 'kernel branch'
         required: true
