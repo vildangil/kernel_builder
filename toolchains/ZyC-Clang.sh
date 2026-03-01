@@ -10,7 +10,7 @@ case $1 in
     # Clone compiler
     if [[ ! -d "${dir}" ]]; then
       mkdir ${dir} && cd ${dir}
-	  curl -Lo a.tar.gz "https://github.com/ZyCromerZ/Clang/releases/download/18.0.0-20230826-release/Clang-18.0.0-20230826.tar.gz"
+	  curl -Lo a.tar.gz "https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
 	  tar -zxf a.tar.gz
     fi
   ;;
