@@ -1,4 +1,4 @@
-name: Building kernel
+  name: Building kernel
 
 on: # [push]
 #  release:
@@ -171,5 +171,3 @@ jobs:
             WORKFLOW_END=$(date +"%s")
             WDIFF=$((WORKFLOW_END - WORKFLOW_START))
             bash tg_utils.sh msg "gh $RUN_NUM: workflow ended in $((WDIFF / 60))m, $((WDIFF % 60))s"
-
-        
