@@ -35,15 +35,15 @@ on: # [push]
         default: ''
       ZREPO:
         description: 'zipper repo'
-        required: false
+        required: true
         default: 'https://github.com/MrGadget84/AnyKernel3_blossom'
       ZBRANCH:
         description: 'zipper branch'
-        required: false
+        required: true
         default: 'main'
       KSU:
         description: 'if dont want ksu then leave blank'
-        required: false
+        required: false 
         default: ''
       TG_RECIPENT:
         description: 'group id'
