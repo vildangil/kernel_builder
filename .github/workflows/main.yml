@@ -24,7 +24,7 @@ on: # [push]
       KBRANCH:
         description: 'kernel branch'
         required: true
-        default: 'KSU'
+        default: 'infinity'
       NOTES:
         description: 'notes to print out'
         required: false
