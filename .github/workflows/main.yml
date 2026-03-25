@@ -44,7 +44,7 @@ on: # [push]
       KSU:
         description: 'if dont want ksu then leave blank'
         required: true
-        default: 'https://github.com/MrGadget84/kernel_builder_blossom/blob/enanan/ksu/applyPatches.sh'
+        default: 'https://github.com/MrGadget84/kernel_builder/blob/enanan/ksu'
       TG_RECIPENT:
         description: 'group id'
         required: true
