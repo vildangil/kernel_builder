@@ -47,7 +47,7 @@ on: # [push]
         default: ''
       TG_RECIPENT:
         description: 'group id'
-        required: false
+        required: true
         default: '-1003050733874'
       CONTAINER:
         description: 'if you know you know'
