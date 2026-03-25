@@ -43,7 +43,7 @@ on: # [push]
         default: 'main'
       KSU:
         description: 'if dont want ksu then leave blank'
-        required: true
+        required: false
         default: 'https://github.com/rsuntk/KernelSU/blob/main/kernel/setup.sh'
       TG_RECIPENT:
         description: 'group id'
