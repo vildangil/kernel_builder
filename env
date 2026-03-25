@@ -15,7 +15,7 @@ export KBUILD_BUILD_HOST="telegram-de"
 export defconfig="blossom_defconfig"
 
 if [[ -z "$zipper_repo" ]]; then
-  export zipper_repo="https://github.com/Sakurajima07/AnyKernel3_blossom"
+  export zipper_repo="https://github.com/MrGadget84/AnyKernel3_blossom"
 fi
 if [[ -z "$zipper_branch" ]]; then
   export zipper_branch=main
