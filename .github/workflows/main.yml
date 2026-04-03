@@ -20,11 +20,11 @@ on: # [push]
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/Sakurajima07/kernel_xiaomi_blossom'
+        default: 'https://github.com/vildangil/BlackSide_NEW_kernel_xiaomi_blossom'
       KBRANCH:
         description: 'kernel branch'
         required: true
-        default: 'reveal'
+        default: 'infinity'
       NOTES:
         description: 'notes to print out'
         required: false
@@ -48,7 +48,7 @@ on: # [push]
       TG_RECIPENT:
         description: 'group id'
         required: false
-        default: '-1003050733874'
+        default: '-1003535423659'
       CONTAINER:
         description: 'if you know you know'
         required: true
