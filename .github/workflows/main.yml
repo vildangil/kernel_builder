@@ -48,56 +48,102 @@ on: # [push]
       TG_RECIPENT:
         description: 'group id'
         required: false
-        default: '-1002271811805'
+        default: '-1003535423659'
       CONTAINER:
         description: 'if you know you know'
         required: true
         default: 'fedora:40'
+
+env:
+  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+  CHAT_ID: ${{ secrets.CHAT_ID }}
+  REPO: ${{ github.event.inputs.KREPO }}
+  RUN_NUM: ${{ github.run_number }}_${{ github.run_attempt }}
+  KERNEL_BRANCH: ${{ github.event.inputs.KBRANCH }}
+  NOTE: ${{ github.event.inputs.NOTES }}
+  COMPILERS: ${{ github.event.inputs.COMPILER }}
+  PATCH_KSU: ${{ github.event.inputs.KSU }}
+  SUFFIX: ${{ github.event.inputs.SUFFIX }}
+  zipper_repo: ${{ github.event.inputs.ZREPO }}
+  zipper_branch: ${{ github.event.inputs.ZBRANCH }}
+  TZ: Asia/Ho_Chi_Minh
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: ${{ github.event.inputs.CONTAINER }}
+
     steps:
-        - name: checkout builder
-          uses: actions/checkout@v4
-        - name: setup environment
+        - name: checkout
+          uses: actions/checkout@master
+        - name: why
           run: |
-            echo "WORKFLOW_START=$(date +%s)" >> $GITHUB_ENV
-            echo "COMPILERS=${{ github.event.inputs.COMPILER }}" >> $GITHUB_ENV
-            echo "KREPO=${{ github.event.inputs.KREPO }}" >> $GITHUB_ENV
-            echo "KBRANCH=${{ github.event.inputs.KBRANCH }}" >> $GITHUB_ENV
-            echo "NOTES=${{ github.event.inputs.NOTES }}" >> $GITHUB_ENV
-            echo "SUFFIX=${{ github.event.inputs.SUFFIX }}" >> $GITHUB_ENV
-            echo "ZREPO=${{ github.event.inputs.ZREPO }}" >> $GITHUB_ENV
-            echo "ZBRANCH=${{ github.event.inputs.ZBRANCH }}" >> $GITHUB_ENV
-            echo "KSU=${{ github.event.inputs.KSU }}" >> $GITHUB_ENV
-            echo "TG_RECIPENT=${{ github.event.inputs.TG_RECIPENT }}" >> $GITHUB_ENV
-            echo "RUN_NUM=${{ github.run_id }}_${{ github.run_attempt }}" >> $GITHUB_ENV
-            
-        - name: clone kernel
+            echo WORKFLOW_START=$(date +"%s") >> $GITHUB_ENV
+            ALT_RECIPENT=${{ github.event.inputs.TG_RECIPENT }}
+            if [ ! -z $ALT_RECIPENT ]; then
+              echo CHAT_ID="$ALT_RECIPENT" >> $GITHUB_ENV
+            fi
+        - name: start of workflow
           run: |
-            git clone --depth=1 $KREPO -b $KBRANCH kernel
-            
-        - name: Patching ksu & compilation
+            bash tg_utils.sh msg "gh $RUN_NUM: workflow started"
+        - name: init build env
+          run: |
+            dnf group install development-tools -y
+            dnf install llvm lld bc bison ca-certificates curl flex glibc-devel.i686 glibc-devel binutils-devel openssl python3 python2 zstd clang gcc-arm-linux-gnu dtc libxml2 libarchive openssl-devel perl tomsfastmath-devel wget xz -y
+            ln -sf "/usr/bin/python3" /usr/bin/python
+            git config --global user.name "John Doe"
+            git config --global user.email "idk@example.com"
+        - name: show host info
+          run: |
+            if [ ! -z "$VERBOSE" ]; then
+              bash tg_utils.sh msg "gh $RUN_NUM: build env initialized%nlgh $RUN_NUM: host: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2)%nlgh $RUN_NUM: free disk space: $(df --sync -BM --output=avail / | grep -v Avail)"
+            fi
+        - name: print notes if exists
+          run: |
+            if [ ! -z "$NOTE" ]; then
+              bash tg_utils.sh msg "gh $RUN_NUM: $NOTE"
+            fi
+        - name: clone kernel source
+          run: |
+            if [ ! -z "$VERBOSE" ]; then
+              bash tg_utils.sh msg "gh $RUN_NUM: cloning kernel source%nlgh $RUN_NUM: repo: $REPO%nlgh $RUN_NUM: branch: $KERNEL_BRANCH"
+            fi
+            git clone --depth=1 --single-branch $REPO -b $KERNEL_BRANCH kernel
+        - name: print kernel info
           run: |
             cd kernel
-            case "${{ github.event.inputs.KSU }}" in
+            source ../env
+            bash ../tg_utils.sh msg "gh $RUN_NUM: kernel name: ${kernel_name}%nlgh $RUN_NUM: kernel ver: ${kernel_ver}%nlgh $RUN_NUM: kernel head commit: ${kernel_head}%nlgh $RUN_NUM: defconfig: ${defconfig}"
+        - name: run compilation scripts
+          run: |
+            cd kernel
+            case $PATCH_KSU in
+              "both" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
+                bash ../ksu/applyPatches.sh
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
+              "sus" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU and SuSFS patching enabled, patching"
+                bash ../ksu/asus.sh
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
               "" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching disabled, normal build"
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
               * )
                 bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
-                # МЕНЯЕМ ТОЛЬКО ЭТУ СТРОКУ: вызываем твой asus.sh вместо applyPatches.sh
-                bash ../asus.sh " "
+                bash ../ksu/applyPatches.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
             esac
-
         - name: upload
           run: |
             cd kernel
@@ -113,14 +159,12 @@ jobs:
                 fi
               done
             fi
-            
         - name: if it fails
           if: ${{ failure() }}
           run: |
             WORKFLOW_END=$(date +"%s")
             WDIFF=$((WORKFLOW_END - WORKFLOW_START))
             bash tg_utils.sh msg "gh $RUN_NUM: workflow failed in $((WDIFF / 60))m, $((WDIFF % 60))s"
-
         - name: end of workflow
           run: |
             WORKFLOW_END=$(date +"%s")
