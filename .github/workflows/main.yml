@@ -36,7 +36,7 @@ on: # [push]
       ZREPO:
         description: 'zipper repo'
         required: false
-        default: 'https://github.com/Sakurajima07/AnyKernel3_blossom'
+        default: 'https://github.com/vildangil/BlackSide_Kernel_Blossom_AnyKernel3'
       ZBRANCH:
         description: 'zipper branch'
         required: false
