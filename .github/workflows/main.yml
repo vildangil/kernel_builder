@@ -49,12 +49,16 @@ on: # [push]
         description: 'group id'
         required: false
         default: '-1002271811805'
+      CONTAINER:
+        description: 'if you know you know'
+        required: true
+        default: 'fedora:40'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/vildangil/kernel-builder:latest
+      image: ${{ github.event.inputs.CONTAINER }}
     steps:
         - name: checkout builder
           uses: actions/checkout@v4
