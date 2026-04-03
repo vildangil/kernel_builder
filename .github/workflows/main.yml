@@ -86,9 +86,9 @@ jobs:
                 bash ../build.sh "$COMPILERS"
               ;;
               * )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: SukiSU Ultra + SUSFS enabled, patching"
-                # Вызываем именно asus.sh из корня сборщика
-                bash ../asus.sh " " 
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
+                # МЕНЯЕМ ТОЛЬКО ЭТУ СТРОКУ: вызываем твой asus.sh вместо applyPatches.sh
+                bash ../asus.sh " "
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
@@ -116,7 +116,7 @@ jobs:
             WORKFLOW_END=$(date +"%s")
             WDIFF=$((WORKFLOW_END - WORKFLOW_START))
             bash tg_utils.sh msg "gh $RUN_NUM: workflow failed in $((WDIFF / 60))m, $((WDIFF % 60))s"
-            
+
         - name: end of workflow
           run: |
             WORKFLOW_END=$(date +"%s")
