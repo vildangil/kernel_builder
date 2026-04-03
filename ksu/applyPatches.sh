@@ -7,8 +7,9 @@ export outside="${maindir}/.."
 source "${outside}/$1env"
 
 curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
-git add . && git commit -am "drivers: KernelSU"
-KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
+git add . && git commit -am "drivers: SukiSU Ultra"
+SUKI_DIR="drivers/kernelsu"
+KSU_git_ver=$(cd $SUKI_DIR && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 10000 + 200))
 
 patchesdir="$outside/ksu/patches/$(echo $kernel_ver | cut -d. -f1,2)"
@@ -21,9 +22,9 @@ else
   exit 1
 fi
 
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}\"/" "${defconfig_file}"
+sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-sukisu${KSU_ver}\"/" "${defconfig_file}"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
-echo -e " \nincludes rsuntk's KernelSU fork, ver ${KSU_ver}" >> banner_append
+echo -e " \nincludes SukiSU Ultra, ver ${KSU_ver}" >> banner_append
 
