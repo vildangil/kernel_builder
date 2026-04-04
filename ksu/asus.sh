@@ -14,6 +14,7 @@ KSU_ver=$(($KSU_git_ver + 30000))
 patchesdir="$outside/ksu/patches/$(echo $kernel_ver | cut -d. -f1,2)"
 suspatchesdir="$outside/ksu/sus_patches/$(echo $kernel_ver | cut -d. -f1,2)"
 
+echo '# CONFIG_KSU_SUSFS_TRY_UMOUNT is not set' >> "${defconfig_file}"
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
     git am "$patch_file"
