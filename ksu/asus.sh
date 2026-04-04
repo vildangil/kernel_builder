@@ -29,21 +29,6 @@ git add . && git commit -am "drivers: SukiSU Ultra integration"
 patchesdir="$outside/ksu/patches/4.19"
 suspatchesdir="$outside/ksu/sus_patches/4.19"
 
-echo "--- Накладываем VFS патчи ---"
-if [[ -d "$patchesdir" ]]; then
-  for patch_file in "$patchesdir"/*.patch ; do
-    # Пытаемся наложить. Если ошибка — выводим инфо, но не прерываем всю сборку
-    git am "$patch_file" || { echo "КРИТИЧЕСКАЯ ОШИБКА: Патч $patch_file не подошел!"; git am --abort; }
-  done
-fi
-
-echo "--- Накладываем SUSFS патчи ---"
-if [[ -d "$suspatchesdir" ]]; then
-  for patch_file in "$suspatchesdir"/*.patch ; do
-    git am "$patch_file" || { echo "КРИТИЧЕСКАЯ ОШИБКА: Патч $patch_file не подошел!"; git am --abort; }
-  done
-fi
-
 # Настройка дефконфига
 TARGET_CONFIG="${defconfig_file}"
 echo "--- Тюнинг конфига: $TARGET_CONFIG ---"
