@@ -125,22 +125,14 @@ jobs:
         - name: run compilation scripts
           run: |
             cd kernel
-            case $PATCH_KSU in
-              "both" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
-                bash ../build.sh "$COMPILERS"
-                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
-                bash ../ksu/applyPatches.sh
-                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
-                bash ../build.sh "$COMPILERS"
-              ;;
+            case "${{ github.event.inputs.KSU }}" in
               "sus" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU and SuSFS patching enabled, patching"
-                bash ../ksu/asus.sh
+                bash ../ksu/asus.sh "sus"
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
-              "" )
+              "ksu" )
+                bash ../ksu/applyPatches.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
