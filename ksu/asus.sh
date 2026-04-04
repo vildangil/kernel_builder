@@ -60,7 +60,7 @@ CONFIG_HAVE_KPROBES=y
 CONFIG_OVERLAY_FS=y
 EOF
     # Меняем LOCALVERSION более универсально
-    sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-SukaKernel"/g' "$TARGET_CONFIG"
+    sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Blackside_Kernel_Blossom-SukiSUS"/g' "$TARGET_CONFIG"
 else
     echo "ОШИБКА: Файл конфига $TARGET_CONFIG не найден!"
     exit 1
