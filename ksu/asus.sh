@@ -39,7 +39,7 @@ CONFIG_KPROBE_EVENTS=y
 CONFIG_OVERLAY_FS=y
 EOF
     # Исправляем название ядра
-    sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-SukaKernel"/g' "$TARGET_CONFIG"
+    sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-BlacksideKernel-Blossom"/g' "$TARGET_CONFIG"
 fi
 
 git add .
