@@ -1,38 +1,63 @@
 #!/bin/bash
-# asus.sh — SukiSU Ultra + SUSFS + SukiSUS name
+# asus.sh — Исправленная интеграция SukiSU Ultra + SUSFS
 
 export maindir="$(pwd)"
-# Так как ядро в папке /kernel, выходим на уровень выше к сборщику
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-# 1. Установка именно SukiSU Ultra
-curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -s susfs-main
-git add . && git commit -am "drivers: SukiSU Ultra"
+# Настройка Git (без этого commit упадет и SukiSU не встроится)
+git config --global user.email "bot@example.com"
+git config --global user.name "Kernel Bot"
 
-# 2. Пути к патчам (ищем их в папке ksu сборщика)
+echo "--- Начинаем установку SukiSU Ultra ---"
+
+# 1. Установка SukiSU Ultra
+# Используем -s main или конкретную версию. Добавляем проверку на успех.
+curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -s susfs-v1.5.2 || exit 1
+git add . && git commit -am "drivers: SukiSU Ultra integration"
+
+# 2. Определение путей к патчам
 patchesdir="$outside/ksu/patches/4.19"
 suspatchesdir="$outside/ksu/sus_patches/4.19"
 
-# 3. Накладываем патчи
+# 3. Накладываем патчи (убрали --abort, чтобы видеть ошибки в логах)
+echo "--- Накладываем VFS патчи ---"
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
-    git am "$patch_file" || git am --abort
+    git am "$patch_file" || { echo "Ошибка в патче $patch_file"; git am --skip; }
   done
 fi
 
+echo "--- Накладываем SUSFS патчи ---"
 if [[ -d "$suspatchesdir" ]]; then
   for patch_file in "$suspatchesdir"/*.patch ; do
-    git am "$patch_file" || git am --abort
+    git am "$patch_file" || { echo "Ошибка в патче $patch_file"; git am --skip; }
   done
 fi
 
-# 4. ВКЛЮЧАЕМ РУТ В КОНФИГЕ (Без этого не будет работать!)
-# Путь: arch/arm64/configs/blossom_defconfig
-echo "CONFIG_KSU=y" >> "arch/arm64/configs/${defconfig_file}"
-echo "CONFIG_KSU_SUSFS=y" >> "arch/arm64/configs/${defconfig_file}"
+# 4. ПРАВИЛЬНОЕ ВКЛЮЧЕНИЕ В КОНФИГЕ
+# Твоя переменная defconfig_file уже содержит путь, не добавляем arch/arm64/...
+TARGET_CONFIG="${defconfig_file}"
 
-# 5. Меняем название на SukiSUS
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-SukiSUS\"/" "arch/arm64/configs/${defconfig_file}"
+echo "--- Настройка дефконфига: $TARGET_CONFIG ---"
 
-echo "Done! Localversion: $(grep 'CONFIG_LOCALVERSION' arch/arm64/configs/${defconfig_file})"
+# Удаляем старые упоминания, если они были
+sed -i '/CONFIG_KSU/d' "$TARGET_CONFIG"
+sed -i '/CONFIG_KPROBES/d' "$TARGET_CONFIG"
+sed -i '/CONFIG_OVERLAY_FS/d' "$TARGET_CONFIG"
+
+# Добавляем необходимые параметры
+cat <<EOF >> "$TARGET_CONFIG"
+CONFIG_KSU=y
+CONFIG_KSU_SUSFS=y
+CONFIG_SUSFS=y
+CONFIG_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_OVERLAY_FS=y
+EOF
+
+# Переименование ядра (исправленный путь)
+sed -i 's/CONFIG_LOCALVERSION="-TsukiNoHikari"/CONFIG_LOCALVERSION="-SukaKernel"/g' "$TARGET_CONFIG"
+
+echo "--- Готово! ---"
