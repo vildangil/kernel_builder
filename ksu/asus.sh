@@ -34,6 +34,6 @@ else
   exit 1
 fi
 
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}sus\"/" "${defconfig_file}"
+sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}\"/" "${defconfig_file}"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
