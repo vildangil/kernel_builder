@@ -17,6 +17,7 @@ cat <<EOF > drivers/kernelsu/ksu_fix.h
 #ifndef KSU_FIX_H
 #define KSU_FIX_H
 #include <linux/fs.h>
+#include <linux/path.h>
 struct file;
 int ksu_handle_fops(struct file *file);
 void ksu_dentry_init(void);
