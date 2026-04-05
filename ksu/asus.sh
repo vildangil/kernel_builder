@@ -1,47 +1,39 @@
 #!/bin/bash
+#
+# hdjsjfjjwufbeizihfjejzf
+
 export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-# Настройка гита
-git config --global user.email "bot@example.com"
-git config --global user.name "Kernel Bot"
+curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -s legacy_susfs
+git add . && git commit -am "drivers: KernelSU"
+KSU_git_ver=$(cd KernelSU-Next && git rev-list --count HEAD)
+KSU_ver=$(($KSU_git_ver + 30000))
 
-# Сброс только ДО начала всех работ
-git am --abort >/dev/null 2>&1
-git reset --hard HEAD
+patchesdir="$outside/ksu/patches/"
+suspatchesdir="$outside/ksu/sus_patches/"
 
-echo "--- Установка SukiSU (KSU + SusFS) ---"
-# setup.sh от SukiSU сам скачивает KSU и патчит файлы
-if ! curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -s susfs-v1.5.2; then
-    echo "ОШИБКА: setup.sh не отработал"
-    exit 1
+echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
+echo '# CONFIG_KSU_SUSFS_TRY_UMOUNT is not set' >> "${defconfig_file}"
+if [[ -d "$patchesdir" ]]; then
+  for patch_file in "$patchesdir"/*.patch ; do
+    git am "$patch_file"
+  done
+else
+  echo "patching ksu failed, the kernel version you want to patch doesnt have patches here yet"
+  exit 1
 fi
 
-# Проверяем Makefile (только одна запись!)
-sed -i '/kernelsu/d' drivers/Makefile
-echo "obj-y += kernelsu/" >> drivers/Makefile
-
-# Включаем опции в конфиге ПРАВИЛЬНО
-TARGET_CONFIG="arch/arm64/configs/blossom_defconfig" # Укажи точный путь если переменная не подхватилась
-if [ -f "$TARGET_CONFIG" ]; then
-    echo "--- Настройка дефконфига ---"
-    # Удаляем старые упоминания, если они были
-    sed -i '/CONFIG_KSU/d' "$TARGET_CONFIG"
-    sed -i '/CONFIG_SUSFS/d' "$TARGET_CONFIG"
-    
-    cat <<EOF >> "$TARGET_CONFIG"
-CONFIG_KSU=y
-CONFIG_KSU_SUSFS=y
-CONFIG_SUSFS=y
-CONFIG_KPROBES=y
-CONFIG_KPROBE_EVENTS=y
-CONFIG_OVERLAY_FS=y
-EOF
-    # Исправляем название ядра
-    sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-BlacksideKernel-Blossom"/g' "$TARGET_CONFIG"
+if [[ -d "$suspatchesdir" ]]; then
+  for patch_file in "$suspatchesdir"/*.patch ; do
+    git am "$patch_file"
+  done
+else
+  echo "patching ksu susfs failed, the kernel version you want to patch doesnt have patches here yet"
+  exit 1
 fi
 
-git add .
-git commit -m "Integrated SukiSU and updated config"
-echo "--- Все готово для сборки ---"
+sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}sus\"/" "${defconfig_file}"
+
+echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
