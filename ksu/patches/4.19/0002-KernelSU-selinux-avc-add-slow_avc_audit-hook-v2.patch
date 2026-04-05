@@ -9,18 +9,6 @@ Signed-off-by: zyexro <zyexro@proton.me>
  security/selinux/avc.c               | 9 +++++++++
  2 files changed, 10 insertions(+)
 
-diff --git a/arch/arm64/configs/blossom_defconfig b/arch/arm64/configs/blossom_defconfig
-index 6cfdce98a85a..045f230b455b 100644
---- a/arch/arm64/configs/blossom_defconfig
-+++ b/arch/arm64/configs/blossom_defconfig
-@@ -1,6 +1,7 @@
- CONFIG_LOCALVERSION="-sashimi"
- # CONFIG_LOCALVERSION_AUTO is not set
- CONFIG_PREEMPT=y
-+CONFIG_KSU_EXTRAS=y
- # CONFIG_CPU_ISOLATION is not set
- CONFIG_LOG_BUF_SHIFT=21
- CONFIG_PELT_UTIL_HALFLIFE_16=y
 diff --git a/security/selinux/avc.c b/security/selinux/avc.c
 index b7c17932f03b..667174f0d5de 100644
 --- a/security/selinux/avc.c
