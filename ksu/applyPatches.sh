@@ -1,29 +1,49 @@
 #!/bin/bash
-#
-# hdjsjfjjwufbeizihfjejzf
-
 export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh" | bash -
-git add . && git commit -am "drivers: KernelSU"
-KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
-KSU_ver=$(($KSU_git_ver + 10000 + 200))
+# Настройка Git
+git config --global user.email "bot@example.com"
+git config --global user.name "Kernel Bot"
 
-patchesdir="$outside/ksu/patches/$(echo $kernel_ver | cut -d. -f1,2)"
-if [[ -d "$patchesdir" ]]; then
-  for patch_file in "$patchesdir"/*.patch ; do
-    git am "$patch_file"
-  done
-else
-  echo "patching ksu failed, the kernel version you want to patch doesnt have patches here yet"
-  exit 1
+# Очистка перед началом
+git am --abort >/dev/null 2>&1
+git reset --hard HEAD
+
+echo "--- Установка SukiSU Ultra (KSU + SusFS) ---"
+# Используем официальный установщик SukiSU
+if ! curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -s susfs-v1.5.2; then
+    echo "Ошибка: setup.sh не смог примениться"
+    exit 1
 fi
 
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}\"/" "${defconfig_file}"
+# Проверка Makefile
+if ! grep -q "kernelsu" drivers/Makefile; then
+    echo "obj-y += kernelsu/" >> drivers/Makefile
+fi
 
-echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
+# Настройка дефконфига
+TARGET_CONFIG="arch/arm64/configs/blossom_defconfig"
+if [ -f "$TARGET_CONFIG" ]; then
+    echo "--- Настройка конфига: $TARGET_CONFIG ---"
+    # Удаляем старые параметры, чтобы не было дублей
+    sed -i '/CONFIG_KSU/d' "$TARGET_CONFIG"
+    sed -i '/CONFIG_SUSFS/d' "$TARGET_CONFIG"
+    sed -i '/CONFIG_KPROBES/d' "$TARGET_CONFIG"
+    
+    # Добавляем нужные флаги
+    cat <<EOF >> "$TARGET_CONFIG"
+CONFIG_KSU=y
+CONFIG_KSU_SUSFS=y
+CONFIG_SUSFS=y
+CONFIG_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_OVERLAY_FS=y
+EOF
+    # Ставим твое название ядра
+    sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-SukaKernel-SukiSU"/g' "$TARGET_CONFIG"
+fi
 
-echo -e " \nincludes rsuntk's KernelSU fork, ver ${KSU_ver}" >> banner_append
-
+git add .
+git commit -m "Integrated SukiSU Ultra"
