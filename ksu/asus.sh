@@ -36,5 +36,5 @@ sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}sus\"/"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
-echo -e " \nincludes rsuntk's KernelSU fork, ver ${KSU_ver}" >> banner_append
-echo -e " \nincludes SuSFS v1.5.12" >> banner_append
+echo -e " \nKernelSU Version Enable, ksu ver ${KSU_ver}" >> banner_append
+echo -e " \nSuSFS Version Enable, susfs ver 1.5.3" >> banner_append
