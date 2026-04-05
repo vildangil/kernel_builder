@@ -3,57 +3,59 @@ export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-# Настройка Git
+# Настройка Git (нужно для патчей)
 git config --global user.email "bot@example.com"
 git config --global user.name "Kernel Bot"
 
-# Сброс правок
+# Очистка перед работой
 git am --abort >/dev/null 2>&1
 git reset --hard HEAD
 
 echo "--- Установка SukiSU Ultra ---"
-# Скачиваем саму папку с кодом KSU
-curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
+# Скачиваем код SukiSU
+curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -s susfs-v1.5.2
 
-# --- ВЗЛОМ KCONFIG (КРИТИЧНО) ---
-# Убираем все "depends on", которые мешают сборке KSU на старых ядрах
+# --- ХАК: Принудительная сборка ---
+# На 4.19 KSU часто не видит KPROBES. Уберем зависимость в Kconfig.
 if [ -f "drivers/kernelsu/Kconfig" ]; then
-    echo "--- Взлом Kconfig для принудительной сборки ---"
     sed -i 's/depends on .*//g' drivers/kernelsu/Kconfig
-    sed -i 's/bool "KernelSU support"/bool "KernelSU support"\n    default y/g' drivers/kernelsu/Kconfig
+    echo "--- Зависимости Kconfig удалены ---"
 fi
 
-# Прописываем папку в Makefile
+# Гарантируем, что папка прописана в Makefile
 sed -i '/kernelsu/d' drivers/Makefile
 echo "obj-y += kernelsu/" >> drivers/Makefile
 
-# --- ПРИМЕНЕНИЕ ПАТЧЕЙ ДЛЯ SUSFS ---
-# Убедись, что папки patches и sus_patches существуют в твоем репо
+# --- ПРИМЕНЕНИЕ ПАТЧЕЙ ---
+# Проверяем наличие папок с патчами (путь зависит от структуры твоего репозитория)
 patchesdir="$outside/ksu/patches/4.19"
 suspatchesdir="$outside/ksu/sus_patches/4.19"
 
 if [ -d "$patchesdir" ]; then
-    git am "$patchesdir"/*.patch || echo "Ошибка патчей KSU - пропускаем"
-fi
-if [ -d "$suspatchesdir" ]; then
-    git am "$suspatchesdir"/*.patch || echo "Ошибка патчей SusFS - пропускаем"
+    echo "--- Применяем патчи KSU ---"
+    git am "$patchesdir"/*.patch || echo "Патчи KSU не наложены (возможно, уже есть в коде)"
 fi
 
-# --- НАСТРОЙКА DEFCONFIG ---
+if [ -d "$suspatchesdir" ]; then
+    echo "--- Применяем патчи SusFS ---"
+    git am "$suspatchesdir"/*.patch || echo "Патчи SusFS не наложены"
+fi
+
+# --- ЖЕСТКАЯ ПРАВКА КОНФИГА ---
 TARGET_CONFIG="arch/arm64/configs/blossom_defconfig"
 if [ -f "$TARGET_CONFIG" ]; then
-    echo "--- Принудительная вставка конфигов ---"
-    # Удаляем старое
+    echo "--- Инъекция параметров в $TARGET_CONFIG ---"
+    # Удаляем старые упоминания, чтобы избежать конфликтов
     sed -i '/CONFIG_KSU/d' "$TARGET_CONFIG"
     sed -i '/CONFIG_SUSFS/d' "$TARGET_CONFIG"
     sed -i '/CONFIG_KPROBES/d' "$TARGET_CONFIG"
     sed -i '/CONFIG_OVERLAY_FS/d' "$TARGET_CONFIG"
-    sed -i '/CONFIG_LOCALVERSION/d' "$TARGET_CONFIG"
     
-    # Добавляем жестко в конец
+    # Включаем всё необходимое принудительно
     cat <<EOF >> "$TARGET_CONFIG"
 CONFIG_KPROBES=y
 CONFIG_KPROBE_EVENTS=y
+CONFIG_HAVE_KPROBES=y
 CONFIG_OVERLAY_FS=y
 CONFIG_KSU=y
 CONFIG_KSU_SUSFS=y
@@ -63,4 +65,4 @@ EOF
 fi
 
 git add .
-git commit -m "Force integrate SukiSU Ultra"
+git commit -m "Force KSU and SusFS integration"
