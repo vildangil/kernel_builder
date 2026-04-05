@@ -4,14 +4,13 @@ maindir="$(pwd)"
 outside="${maindir}/.."
 
 dir="${outside}/AOSP-Clang"
-version="r547379"
 
 case $1 in
   "setup" )
     # Clone compiler
     if [[ ! -d "${dir}" ]]; then
       mkdir ${dir} && cd ${dir}
-      LATEST_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-${version}.tar.gz"
+      LATEST_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r584948.tar.gz"
 
       curl -Lo a.tar.gz "$LATEST_URL"
       tar -zxf a.tar.gz
