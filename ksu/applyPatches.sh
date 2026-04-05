@@ -1,16 +1,12 @@
 #!/bin/bash
-#
-# hdjsjfjjwufbeizihfjejzf
 
 export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
-curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
-git add . && git commit -am "drivers: KernelSU"
-KSU_git_ver=$(cd KernelSU-Next && git rev-list --count HEAD)
-KSU_ver=$(($KSU_git_ver + 30000))
 
-echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
+curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
+git add . && git commit -am "drivers: SukiSU Ultra"
+
 patchesdir="$outside/ksu/patches/"
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
@@ -21,7 +17,14 @@ else
   exit 1
 fi
 
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}\"/" "${defconfig_file}"
+sed -i '/kernelsu/d' drivers/Makefile
+echo "obj-y += kernelsu/" >> drivers/Makefile
 
-echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
+if [ -f "drivers/kernelsu/Kconfig" ]; then
+    sed -i 's/depends on .*//g' drivers/kernelsu/Kconfig
+fi
 
+echo 'CONFIG_KPROBES=y' >> "${defconfig_file}"
+echo 'CONFIG_KPROBE_EVENTS=y' >> "${defconfig_file}"
+echo 'CONFIG_OVERLAY_FS=y' >> "${defconfig_file}"
+echo 'CONFIG_KSU=y' >> "${defconfig_file}"
