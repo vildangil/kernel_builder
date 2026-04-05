@@ -10,7 +10,7 @@ case $1 in
     # Clone compiler
     if [[ ! -d "${dir}" ]]; then
       mkdir ${dir} && cd ${dir}
-      LATEST_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r584948.tar.gz"
+      LATEST_URL="https://github.com/zyexro/aosp-clang/releases/download/clang-r584948/clang-r584948.tar.gz"
 
       curl -Lo a.tar.gz "$LATEST_URL"
       tar -zxf a.tar.gz
