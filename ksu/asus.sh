@@ -38,16 +38,3 @@ echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
 echo -e " \nKernelSU Version Enable, ksu ver ${KSU_ver}" >> banner_append
 echo -e " \nSuSFS Version Enable, susfs ver 1.5.3" >> banner_append
-
-cat <<EOF >> "${defconfig_file}"
-CONFIG_KPROBES=y
-CONFIG_KPROBE_EVENTS=y
-CONFIG_HAVE_KPROBES=y
-CONFIG_KALLSYMS=y
-CONFIG_KALLSYMS_ALL=y
-CONFIG_UPROBES=y
-CONFIG_MODULES=y
-CONFIG_LTO_CLANG_NONE=y
-EOF
-
-sed -i 's/obj-$(CONFIG_KPROBES) += kernelsu\//obj-y += kernelsu\//g' drivers/Makefile
