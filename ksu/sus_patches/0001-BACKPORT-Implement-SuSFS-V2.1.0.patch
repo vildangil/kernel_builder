@@ -1,4 +1,4 @@
-From 3240dae910d105c901bc5d5f5eea6aeb5d69fe75 Mon Sep 17 00:00:00 2001
+From 8d3e511a0bd87f82622eb197b09a5bb50dc209b2 Mon Sep 17 00:00:00 2001
 From: zyexro <zyexro@proton.me>
 Date: Sat, 4 Apr 2026 23:25:48 +0100
 Subject: [PATCH] BACKPORT: Implement SuSFS-V2.1.0
@@ -6,7 +6,7 @@ Subject: [PATCH] BACKPORT: Implement SuSFS-V2.1.0
 Signed-off-by: zyexro <zyexro@proton.me>
 ---
  fs/Makefile               |    2 +
- fs/namei.c                |  166 ++++-
+ fs/namei.c                |  164 ++++-
  fs/namespace.c            |  250 +++++++
  fs/notify/fdinfo.c        |   58 ++
  fs/open.c                 |   29 +
@@ -18,13 +18,13 @@ Signed-off-by: zyexro <zyexro@proton.me>
  fs/readdir.c              |   97 +++
  fs/stat.c                 |   17 +
  fs/statfs.c               |   44 ++
- fs/susfs.c                | 1447 +++++++++++++++++++++++++++++++++++++
+ fs/susfs.c                | 1446 +++++++++++++++++++++++++++++++++++++
  include/linux/susfs.h     |  242 +++++++
  include/linux/susfs_def.h |  143 ++++
  kernel/kallsyms.c         |   32 +
  kernel/sys.c              |    6 +
  security/selinux/avc.c    |   18 +
- 19 files changed, 2816 insertions(+), 2 deletions(-)
+ 19 files changed, 2814 insertions(+), 1 deletion(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -43,7 +43,7 @@ index 9dee1ce94b58..132faba8b4fb 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/namei.c b/fs/namei.c
-index d0a84a986068..6b4f30d507d1 100644
+index d0a84a986068..1e7556266eef 100644
 --- a/fs/namei.c
 +++ b/fs/namei.c
 @@ -40,6 +40,9 @@
@@ -108,13 +108,12 @@ index d0a84a986068..6b4f30d507d1 100644
  	struct inode *dir = base->d_inode;
  
 -	if (dentry)
--		return dentry;
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +	bool found_sus_path = false;
 +#endif
 +
 +	if (dentry) {
-+		return dentry;	
+ 		return dentry;
 +	}
  
  	/* Don't create child dentry for a dead directory. */
@@ -1713,10 +1712,10 @@ index 29786598c2b5..19b69141a2d6 100644
  		buf->f_flags = calculate_f_flags(path->mnt);
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000000..6c514c681b52
+index 000000000000..8e7bb27542b6
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,1447 @@
+@@ -0,0 +1,1446 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -1750,8 +1749,8 @@ index 000000000000..6c514c681b52
 +#define SUSFS_LOGI(fmt, ...) if (READ_ONCE(susfs_is_log_enabled)) pr_info("susfs:[%u][%d][%s] " fmt, current_uid().val, current->pid, __func__, ##__VA_ARGS__)
 +#define SUSFS_LOGE(fmt, ...) if (READ_ONCE(susfs_is_log_enabled)) pr_err("susfs:[%u][%d][%s]" fmt, current_uid().val, current->pid, __func__, ##__VA_ARGS__)
 +#else
-+#define SUSFS_LOGI(fmt, ...) 
-+#define SUSFS_LOGE(fmt, ...) 
++#define SUSFS_LOGI(fmt, ...)
++#define SUSFS_LOGE(fmt, ...)
 +#endif
 +
 +bool susfs_starts_with(const char *str, const char *prefix) {
@@ -1806,7 +1805,7 @@ index 000000000000..6c514c681b52
 +			goto out_path_put_path;
 +		}
 +		set_bit(AS_FLAGS_SUS_PATH, &fi->inode.i_mapping->flags);
-+		SUSFS_LOGI("flagged AS_FLAGS_SUS_PATH on pathname: '%s', fi->nodeid: %llu, fi->inode.i_ino: %lu, fi->inode.i_mapping->flags: 0x%lx\n", 
++		SUSFS_LOGI("flagged AS_FLAGS_SUS_PATH on pathname: '%s', fi->nodeid: %llu, fi->inode.i_ino: %lu, fi->inode.i_mapping->flags: 0x%lx\n",
 +					info.target_pathname, fi->nodeid, fi->inode.i_ino, fi->inode.i_mapping->flags);
 +		info.err = 0;
 +		goto out_path_put_path;
@@ -2392,7 +2391,7 @@ index 000000000000..6c514c681b52
 +
 +void susfs_set_cmdline_or_bootconfig(void __user **user_info) {
 +	struct st_susfs_spoof_cmdline_or_bootconfig *info = (struct st_susfs_spoof_cmdline_or_bootconfig *)kzalloc(sizeof(struct st_susfs_spoof_cmdline_or_bootconfig), GFP_KERNEL);
-+	
++
 +	if (!info) {
 +		info->err = -ENOMEM;
 +		goto out_copy_to_user;
@@ -3163,7 +3162,6 @@ index 000000000000..6c514c681b52
 +
 +/* No module exit is needed becuase it should never be a loadable kernel module */
 +//void __init susfs_exit(void)
-+
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
 index 000000000000..2b1f59c4c451
@@ -3414,7 +3412,7 @@ index 000000000000..2b1f59c4c451
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000000..9e89204f4d1e
+index 000000000000..582b2c52af9c
 --- /dev/null
 +++ b/include/linux/susfs_def.h
 @@ -0,0 +1,143 @@
@@ -3487,7 +3485,7 @@ index 000000000000..9e89204f4d1e
 +#define ND_STATE_LOOKUP_LAST 32
 +#define ND_STATE_OPEN_LAST 64
 +#define ND_FLAGS_LOOKUP_LAST		0x2000000
-+ 
++
 +#define MAGIC_MOUNT_WORKDIR "/debug_ramdisk/workdir"
 +
 +/* From KernelSU */

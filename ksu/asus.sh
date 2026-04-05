@@ -11,8 +11,8 @@ git add . && git commit -am "drivers: KernelSU"
 KSU_git_ver=$(cd KernelSU-Next && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 30000))
 
-patchesdir="$outside/ksu/patches/$(echo $kernel_ver | cut -d. -f1,2)"
-suspatchesdir="$outside/ksu/sus_patches/$(echo $kernel_ver | cut -d. -f1,2)"
+patchesdir="$outside/ksu/patches/"
+suspatchesdir="$outside/ksu/sus_patches/"
 
 echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
 echo '# CONFIG_KSU_SUSFS_TRY_UMOUNT is not set' >> "${defconfig_file}"
