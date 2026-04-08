@@ -5,6 +5,10 @@ export outside="${maindir}/.."
 source "${outside}/$1env"
 
 curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
+
+# Вырезаем макрос, ломающий сборку на старых ядрах
+sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/core/init.c 2>/dev/null
+
 git add . && git commit -am "drivers: SukiSU Ultra"
 
 patchesdir="$outside/ksu/patches/"
@@ -24,7 +28,15 @@ if [ -f "drivers/kernelsu/Kconfig" ]; then
     sed -i 's/depends on .*//g' drivers/kernelsu/Kconfig
 fi
 
-echo 'CONFIG_KPROBES=y' >> "${defconfig_file}"
-echo 'CONFIG_KPROBE_EVENTS=y' >> "${defconfig_file}"
-echo 'CONFIG_OVERLAY_FS=y' >> "${defconfig_file}"
-echo 'CONFIG_KSU=y' >> "${defconfig_file}"
+# Очищаем старые записи, чтобы не было дублей
+sed -i '/CONFIG_KSU/d' "${defconfig_file}"
+
+{
+  echo 'CONFIG_KPROBES=y'
+  echo 'CONFIG_KPROBE_EVENTS=y'
+  echo 'CONFIG_OVERLAY_FS=y'
+  echo 'CONFIG_KSU=y'
+} >> "${defconfig_file}"
+
+git add .
+git commit -m "update config" --quiet
