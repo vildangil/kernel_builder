@@ -1433,16 +1433,6 @@ index c2e0bb89004d..b3530cbb6383 100644
  	struct linux_dirent __user * previous;
  	int count;
  	int error;
-@@ -263,6 +291,9 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
- 	unsigned long d_ino;
- 	int reclen = ALIGN(offsetof(struct linux_dirent, d_name) + namlen + 2,
- 		sizeof(long));
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+	struct inode *inode;
-+#endif
- 
- 	buf->error = verify_dirent_name(name, namlen);
- 	if (unlikely(buf->error))
 @@ -325,6 +356,9 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
  	if (!f.file)
  		return -EBADF;
