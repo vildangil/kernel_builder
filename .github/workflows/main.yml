@@ -43,7 +43,7 @@ on: # [push]
         default: 'main'
       KSU:
         description: 'if dont want ksu then leave blank'
-        required: true
+        required: false
         default: ''
       TG_RECIPENT:
         description: 'group id'
