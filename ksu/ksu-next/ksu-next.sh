@@ -12,7 +12,7 @@ KSU_git_ver=$(cd KernelSU-Next && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 30000))
 
 patchesdir="$outside/ksu/ksu-next/patches/"
-suspatchesdir="$outside/ksu/ksu-next/sus-patches/"
+suspatchesdir="$outside/ksu/ksu-next/sus_patches/"
 
 echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
 echo '# CONFIG_KSU_SUSFS_TRY_UMOUNT is not set' >> "${defconfig_file}"
