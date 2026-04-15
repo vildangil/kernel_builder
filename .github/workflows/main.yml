@@ -20,7 +20,7 @@ on: # [push]
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/vildangil/BlackSide_NEW_kernel_xiaomi_blossom'
+        default: 'https://github.com/vildangil/BlackSide_kernel_xiaomi_blossom'
       KBRANCH:
         description: 'kernel branch'
         required: true
