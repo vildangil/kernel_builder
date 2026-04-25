@@ -7,6 +7,10 @@ source "${outside}/$1env"
 curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/core/init.c 2>/dev/null
 sed -i 's|#include <linux/pgtable.h>|#include <asm/pgtable.h>|g' drivers/kernelsu/feature/sucompat.c
+sed -i '1i #include <linux/uaccess.h>' drivers/kernelsu/hook/arm64/patch_memory.c
+sed -i '2i #ifndef copy_to_kernel_nofault' drivers/kernelsu/hook/arm64/patch_memory.c
+sed -i '3i #define copy_to_kernel_nofault(dst, src, size) probe_kernel_write(dst, src, size)' drivers/kernelsu/hook/arm64/patch_memory.c
+sed -i '4i #endif' drivers/kernelsu/hook/arm64/patch_memory.c
 git add . && git commit -am "drivers: SukiSU Ultra"
 
 patchesdir="$outside/ksu/patches/"
