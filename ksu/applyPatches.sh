@@ -5,10 +5,8 @@ export outside="${maindir}/.."
 source "${outside}/$1env"
 
 curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
-
-# Вырезаем макрос, ломающий сборку на старых ядрах
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/core/init.c 2>/dev/null
-
+sed -i 's|#include <linux/pgtable.h>|#include <asm/pgtable.h>|g' drivers/kernelsu/feature/sucompat.c
 git add . && git commit -am "drivers: SukiSU Ultra"
 
 patchesdir="$outside/ksu/patches/"
