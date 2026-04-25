@@ -18,6 +18,8 @@ sed -i '2i #ifndef copy_to_kernel_nofault' drivers/kernelsu/hook/arm64/patch_mem
 sed -i '3i #define copy_to_kernel_nofault(dst, src, size) probe_kernel_write(dst, src, size)' drivers/kernelsu/hook/arm64/patch_memory.c
 sed -i '4i #endif' drivers/kernelsu/hook/arm64/patch_memory.c
 sed -i 's/\bcurrent_task\b/current/g' drivers/kernelsu/manager.h
+sed -i 's/orig->f_op->remap_file_range(file_in, pos_in, orig, pos_out, len, remap_flags);/return -EOPNOTSUPP;/' drivers/kernelsu/infra/file_wrapper.c
+sed -i 's/p->ops.iopoll = fp->f_op->iopoll ? ksu_wrapper_iopoll : NULL;/p->ops.iopoll = NULL;/' drivers/kernelsu/infra/file_wrapper.c
 git add . && git commit -am "update" --quiet
 
 cat <<EOF > drivers/kernelsu/ksu_fix.h
