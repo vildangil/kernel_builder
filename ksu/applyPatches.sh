@@ -6,7 +6,9 @@ export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh" | bash -s master
+curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -s legacy
+sed -i 's/#define KSU_EXPECTED_SIZE .*/#define KSU_EXPECTED_SIZE 0/' drivers/kernelsu/core/manager.h
+sed -i 's/#define KSU_EXPECTED_HASH .*/#define KSU_EXPECTED_HASH ""/' drivers/kernelsu/core/manager.h
 git add . && git commit -am "drivers: KernelSU"
 KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 30000))
