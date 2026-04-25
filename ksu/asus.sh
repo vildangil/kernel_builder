@@ -11,6 +11,7 @@ git am --abort >/dev/null 2>&1
 git reset --hard HEAD
 
 curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -s susfs-v2.1.0 >/dev/null 2>&1
+sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/core/init.c 2>/dev/null
 git add . && git commit -am "update" --quiet
 
 cat <<EOF > drivers/kernelsu/ksu_fix.h
