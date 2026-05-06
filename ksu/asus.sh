@@ -7,8 +7,6 @@ export outside="${maindir}/.."
 source "${outside}/$1env"
 
 curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -s legacy_susfs
-sed -i 's/#define KSU_EXPECTED_SIZE .*/#define KSU_EXPECTED_SIZE 0/' drivers/kernelsu/core/manager.h
-sed -i 's/#define KSU_EXPECTED_HASH .*/#define KSU_EXPECTED_HASH ""/' drivers/kernelsu/core/manager.h
 git add . && git commit -am "drivers: KernelSU"
 KSU_git_ver=$(cd KernelSU-Next && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 30000))
@@ -16,6 +14,7 @@ KSU_ver=$(($KSU_git_ver + 30000))
 patchesdir="$outside/ksu/patches/"
 suspatchesdir="$outside/ksu/sus_patches/"
 
+echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
 echo '# CONFIG_KSU_SUSFS_TRY_UMOUNT is not set' >> "${defconfig_file}"
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
