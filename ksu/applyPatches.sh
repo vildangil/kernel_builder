@@ -27,5 +27,5 @@ sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ksu-fckssom\"/" "${
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
-echo -e " \nincludes KernelSU, ver ${KSU_ver}" >> banner_append
+echo -e " \nincludes MultiSU, ver ${KSU_ver}" >> banner_append
 
