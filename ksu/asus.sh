@@ -16,6 +16,8 @@ suspatchesdir="$outside/ksu/sus_patches/"
 
 echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
 echo '# CONFIG_KSU_SUSFS_TRY_UMOUNT is not set' >> "${defconfig_file}"
+echo 'CONFIG_KSU_MANUAL_HOOK=y' >> "${defconfig_file}"
+patchesdir="$outside/ksu/patches/"
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
     git am "$patch_file"
