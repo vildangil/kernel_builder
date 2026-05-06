@@ -6,7 +6,7 @@ export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -s legacy_susfs
+curl -LSs "https://raw.githubusercontent.com/xxblebleblexx/MultiSU/refs/heads/legacy/kernel/setup.sh" | bash -s legacy_susfs
 git add . && git commit -am "drivers: KernelSU"
 KSU_git_ver=$(cd KernelSU-Next && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 30000))
@@ -34,10 +34,10 @@ else
   exit 1
 fi
 
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}sus\"/" "${defconfig_file}"
+sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-KSUS-Fckssom"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
-echo -e " \nincludes KernelSU-Next, ver ${KSU_ver}" >> banner_append
+echo -e " \nincludes MultiSU, ver ${KSU_ver}" >> banner_append
 echo -e " \nincludes SuSFS v2.1.0" >> banner_append
 
