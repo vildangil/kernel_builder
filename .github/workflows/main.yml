@@ -32,7 +32,7 @@ on: # [push]
       SUFFIX:
         description: 'suffix to aplly to teh zip filename'
         required: false
-        default: 'VoidLine_Kernel_Rebirth-ksu_blossom'
+        default: 'VoidLine_Kernel_Rebirth-blossom'
       ZREPO:
         description: 'zipper repo'
         required: true
