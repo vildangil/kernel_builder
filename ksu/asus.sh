@@ -23,7 +23,11 @@ echo 'CONFIG_KSU_SUSFS=y' >> "${defconfig_file}"
 
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
-    git am --3way "$patch_file" || git apply "$patch_file" --ignore-whitespace --ignore-space-change || true
+    [ -f "$patch_file" ] || continue
+    echo "Applying: $(basename $patch_file)"
+    patch -p1 --forward < "$patch_file" 2>/dev/null || \
+    patch -p1 --reverse --dry-run < "$patch_file" &>/dev/null && \
+    patch -p1 < "$patch_file" || true
   done
 else
   echo "ERROR: KSU patches not found"
@@ -32,12 +36,18 @@ fi
 
 if [[ -d "$suspatchesdir" ]]; then
   for patch_file in "$suspatchesdir"/*.patch ; do
-    git am --3way "$patch_file" || git apply "$patch_file" --ignore-whitespace --ignore-space-change || true
+    [ -f "$patch_file" ] || continue
+    echo "Applying SuSFS: $(basename $patch_file)"
+    patch -p1 --forward < "$patch_file" 2>/dev/null || \
+    patch -p1 --reverse --dry-run < "$patch_file" &>/dev/null && \
+    patch -p1 < "$patch_file" || true
   done
 else
   echo "ERROR: SuSFS patches not found"
   exit 1
 fi
+
+grep -r "ksu_syscall\|susfs" . &>/dev/null && echo "Hooks found!" || echo "WARNING: Hooks not found!"
 
 sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ksus-Fckssom\"/" "${defconfig_file}"
 
