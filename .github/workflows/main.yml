@@ -20,11 +20,11 @@ on: # [push]
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/MrGadget84/white_kernel_xiaomi_blossom'
+        default: 'https://github.com/LineXin/VoidLine_Kernel_Rebirth_For_Blossom'
       KBRANCH:
         description: 'kernel branch'
         required: true
-        default: 'infinity'
+        default: 'yoka_rb2'
       NOTES:
         description: 'notes to print out'
         required: false
@@ -36,7 +36,7 @@ on: # [push]
       ZREPO:
         description: 'zipper repo'
         required: true
-        default: 'https://github.com/MrGadget84/AnyKernel3_blossom'
+        default: 'https://github.com/LineXin/AnyKernel3_blossom'
       ZBRANCH:
         description: 'zipper branch'
         required: true
@@ -44,7 +44,7 @@ on: # [push]
       KSU:
         description: 'if dont want ksu then leave blank'
         required: false
-        default: ''
+        default: 'both'
       TG_RECIPENT:
         description: 'group id'
         required: true
