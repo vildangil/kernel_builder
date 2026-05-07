@@ -1,4 +1,6 @@
 #!/bin/bash
+#
+# hdjsjfjjwufbeizihfjejzf
 
 export maindir="$(pwd)"
 export outside="${maindir}/.."
@@ -23,11 +25,7 @@ echo 'CONFIG_KSU_SUSFS=y' >> "${defconfig_file}"
 
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
-    [ -f "$patch_file" ] || continue
-    echo "Applying: $(basename $patch_file)"
-    patch -p1 --forward < "$patch_file" 2>/dev/null || \
-    patch -p1 --reverse --dry-run < "$patch_file" &>/dev/null && \
-    patch -p1 < "$patch_file" || true
+    git am --3way "$patch_file" || git apply "$patch_file" --ignore-whitespace --ignore-space-change || true
   done
 else
   echo "ERROR: KSU patches not found"
@@ -36,15 +34,27 @@ fi
 
 if [[ -d "$suspatchesdir" ]]; then
   for patch_file in "$suspatchesdir"/*.patch ; do
-    [ -f "$patch_file" ] || continue
-    echo "Applying SuSFS: $(basename $patch_file)"
-    patch -p1 --forward < "$patch_file" 2>/dev/null || \
-    patch -p1 --reverse --dry-run < "$patch_file" &>/dev/null && \
-    patch -p1 < "$patch_file" || true
+    git am --3way "$patch_file" || git apply "$patch_file" --ignore-whitespace --ignore-space-change || true
   done
 else
   echo "ERROR: SuSFS patches not found"
   exit 1
+fi
+
+if [ ! -f "include/linux/susfs.h" ]; then
+    echo "WARNING: susfs.h not found! Trying to find and copy manually..."
+    # Ищем файл в репозитории MultiSU или в патчах
+    find . -name "susfs.h" -exec cp {} include/linux/ \;
+fi
+
+if [ ! -f "include/linux/susfs_def.h" ]; then
+    echo "WARNING: susfs_def.h not found! Trying to find and copy manually..."
+    find . -name "susfs_def.h" -exec cp {} include/linux/ \;
+fi
+
+if ! grep -q "susfs.h" fs/namespace.c; then
+    echo "WARNING: susfs.h not included in namespace.c, adding..."
+    sed -i '/#include <linux\/fs.h>/a #include <linux\/susfs.h>' fs/namespace.c
 fi
 
 grep -r "ksu_syscall\|susfs" . &>/dev/null && echo "Hooks found!" || echo "WARNING: Hooks not found!"
