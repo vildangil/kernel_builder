@@ -14,15 +14,15 @@ KSU_ver=$(($KSU_git_ver + 10000 + 200))
 patchesdir="$outside/ksu/patches/$(echo $kernel_ver | cut -d. -f1,2)"
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
-    git am "$patch_file"
+    git am --3way "$patch_file" || exit 1
   done
 else
   echo "patching ksu failed, the kernel version you want to patch doesnt have patches here yet"
   exit 1
 fi
 
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ks${KSU_ver}\"/" "${defconfig_file}"
+sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-BlacksideKernel-ksu-fckssom\"/" "${defconfig_file}"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
-echo -e " \nKernelSU Version Enable, ksu ver ${KSU_ver}" >> banner_append
+echo -e "KernelSU Version Enable, ksu ver ${KSU_ver}" >> banner_append
