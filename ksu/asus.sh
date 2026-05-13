@@ -60,7 +60,7 @@ fi
 
 grep -r "ksu_syscall\|susfs" . &>/dev/null && echo "Hooks found!" || echo "WARNING: Hooks not found!"
 
-sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-${kernel_name}-ksus-Fckssom\"/" "${defconfig_file}"
+sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-BlacksideKernel-ksus-Fckssom\"/" "${defconfig_file}"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
