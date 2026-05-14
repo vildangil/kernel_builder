@@ -11,6 +11,8 @@ git add . && git commit -am "drivers: KernelSU"
 KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 30000))
 
+sed -i '/CONFIG_KSU/d' "${defconfig_file}"
+
 echo 'CONFIG_KSU=y' >> "${defconfig_file}"
 echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
 echo 'CONFIG_KSU_MANUAL_HOOK=y' >> "${defconfig_file}"
