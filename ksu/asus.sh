@@ -15,12 +15,7 @@ KSU_ver=$(($KSU_git_ver + 30000))
 patchesdir="$outside/ksu/patches/"
 suspatchesdir="$outside/ksu/sus_patches/"
 
-echo 'CONFIG_KSU=y' >> "${defconfig_file}"
 echo 'CONFIG_KSU_EXTRAS=y' >> "${defconfig_file}"
-echo 'CONFIG_KPROBES=y' >> "${defconfig_file}"
-echo 'CONFIG_KSU_KPROBES_HOOK=y' >> "${defconfig_file}"
-echo '# CONFIG_KSU_MANUAL_HOOK is not set' >> "${defconfig_file}"
-echo '# CONFIG_KPROBES_QGKI is not set' >> "${defconfig_file}"
 echo '# CONFIG_KSU_SUSFS_TRY_UMOUNT is not set' >> "${defconfig_file}"
 echo 'CONFIG_KSU_SUSFS=y' >> "${defconfig_file}"
 
