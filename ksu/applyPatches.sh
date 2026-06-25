@@ -23,10 +23,6 @@ fi
 
 sed -i "s/\(CONFIG_LOCALVERSION=\)\(.*\)/\1\"-BlacksideKernel-ksu-fckssom\"/" "${defconfig_file}"
 
-echo "CONFIG_KSU=y" >> "${defconfig_file}"
-echo "CONFIG_KPROBES=y" >> "${defconfig_file}"
-echo "CONFIG_HAVE_KPROBES=y" >> "${defconfig_file}"
-echo "CONFIG_KPROBE_EVENTS=y" >> "${defconfig_file}"
 
 echo "$(grep 'CONFIG_LOCALVERSION=' ${defconfig_file})"
 
