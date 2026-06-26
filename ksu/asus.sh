@@ -7,8 +7,8 @@ export outside="${maindir}/.."
 source "${outside}/$1env"
 
 curl -LSs "https://raw.githubusercontent.com/xxblebleblexx/MultiSU/refs/heads/legacy/kernel/setup.sh" | bash -s legacy_susfs
-git add . && git commit -am "drivers: KernelSU-Next + SuSFS"
-KSU_git_ver=$(cd KernelSU-Next && git rev-list --count HEAD)
+git add . && git commit -am "drivers: MultiSU + SuSFS"
+KSU_git_ver=$(cd MultiSU && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 30000))
 
 patchesdir="$outside/ksu/patches/$(echo $kernel_ver | cut -d. -f1,2)"
