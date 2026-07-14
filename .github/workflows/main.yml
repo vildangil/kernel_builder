@@ -16,11 +16,11 @@ on: # [push]
       COMPILER:
         description: 'compilers used'
         required: true
-        default: 'Slim-LLVM'
+        default: 'shattered-Clang-15'
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/zyexro/sashimi_kernel_xiaomi_blossom'
+        default: 'https://github.com/vildangil/Blackside_kernel_sashimi'
       KBRANCH:
         description: 'kernel branch'
         required: true
@@ -36,19 +36,19 @@ on: # [push]
       ZREPO:
         description: 'zipper repo'
         required: false
-        default: 'https://github.com/zyexro/AnyKernel3.git'
+        default: 'https://github.com/vildangil/BlackSide_Kernel_Blossom_AnyKernel3'
       ZBRANCH:
         description: 'zipper branch'
         required: false
-        default: 'blossom'
+        default: 'main'
       KSU:
         description: 'if dont want ksu then leave blank'
         required: false
-        default: 'both'
+        default: 'sus'
       TG_RECIPENT:
-        description: 'idk'
+        description: 'group id'
         required: false
-        default: '5863300453'
+        default: '-1003535423659'
       CONTAINER:
         description: 'if you know you know'
         required: true
