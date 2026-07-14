@@ -16,11 +16,11 @@ on: # [push]
       COMPILER:
         description: 'compilers used'
         required: true
-        default: 'shattered-Clang-15'
+        default: 'Slim-LLVM'
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/vildangil/Blackside_kernel_sashimi'
+        default: 'https://github.com/zyexro/sashimi_kernel_xiaomi_blossom'
       KBRANCH:
         description: 'kernel branch'
         required: true
@@ -36,19 +36,19 @@ on: # [push]
       ZREPO:
         description: 'zipper repo'
         required: false
-        default: 'https://github.com/vildangil/BlackSide_Kernel_Blossom_AnyKernel3'
+        default: 'https://github.com/zyexro/AnyKernel3.git'
       ZBRANCH:
         description: 'zipper branch'
         required: false
-        default: 'main'
+        default: 'blossom'
       KSU:
         description: 'if dont want ksu then leave blank'
         required: false
-        default: 'sus'
+        default: 'both'
       TG_RECIPENT:
-        description: 'group id'
+        description: 'idk'
         required: false
-        default: '-1003535423659'
+        default: '5863300453'
       CONTAINER:
         description: 'if you know you know'
         required: true
@@ -66,7 +66,7 @@ env:
   SUFFIX: ${{ github.event.inputs.SUFFIX }}
   zipper_repo: ${{ github.event.inputs.ZREPO }}
   zipper_branch: ${{ github.event.inputs.ZBRANCH }}
-  TZ: Asia/Ho_Chi_Minh
+  TZ: Africa/Tunis
 
 jobs:
   build:
@@ -90,7 +90,7 @@ jobs:
         - name: init build env
           run: |
             dnf group install development-tools -y
-            dnf install llvm lld bc bison ca-certificates curl flex glibc-devel.i686 glibc-devel binutils-devel openssl python3 python2 zstd clang gcc-arm-linux-gnu dtc libxml2 libarchive openssl-devel perl tomsfastmath-devel wget xz -y
+            dnf install llvm lld bc bison ca-certificates curl flex glibc-devel.i686 glibc-devel binutils-devel openssl python3 python2 zstd clang gcc-arm-linux-gnu dtc libxml2 libarchive openssl-devel perl tomsfastmath-devel wget xz which git -y
             ln -sf "/usr/bin/python3" /usr/bin/python
             git config --global user.name "John Doe"
             git config --global user.email "idk@example.com"
@@ -133,11 +133,11 @@ jobs:
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
-              "" )
+              "one" )
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
-              * )
+              "ksu" )
                 bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
                 bash ../ksu/applyPatches.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
@@ -171,3 +171,4 @@ jobs:
             WORKFLOW_END=$(date +"%s")
             WDIFF=$((WORKFLOW_END - WORKFLOW_START))
             bash tg_utils.sh msg "gh $RUN_NUM: workflow ended in $((WDIFF / 60))m, $((WDIFF % 60))s"
+
