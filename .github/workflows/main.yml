@@ -20,7 +20,7 @@ on: # [push]
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/vildangil/gnu_kernel_xiaomi_blossom/tree/reveal'
+        default: 'https://github.com/vildangil/gnu_kernel_xiaomi_blossom/'
       KBRANCH:
         description: 'kernel branch'
         required: true
