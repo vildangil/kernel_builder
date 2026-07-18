@@ -48,7 +48,7 @@ for toolchain in $1; do
   export CUR_TOOLCHAIN="${toolchain}"
 
   bash -x "${outside}/toolchains/${toolchain}.sh" build ${defconfig} || exit 1
-  [ -f "mycfg/.config" ] && cp "mycfg/.config" "out/.config"
+  [ -f "mycfg/.config" ] && cp "mycfg/.config" ".config"
 
   if [ -e "${out_image}" ]; then
     BUILD_END=$(date +"%s")
