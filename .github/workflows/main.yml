@@ -20,7 +20,7 @@ on: # [push]
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/vildangil/gnu_kernel_xiaomi_blossom/'
+        default: 'https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@://github.com/vildangil/gnu_kernel_xiaomi_blossom/'
       KBRANCH:
         description: 'kernel branch'
         required: true
