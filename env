@@ -13,6 +13,7 @@ export KBUILD_BUILD_USER="nijuugo-ji"
 export KBUILD_BUILD_HOST="telegram-de"
 
 export defconfig="blossom_defconfig"
+export CLONE_TOKEN="${{ secrets.PERSONAL_ACCESS_TOKEN }}"
 
 if [[ -z "$zipper_repo" ]]; then
   export zipper_repo="https://github.com/Sakurajima07/AnyKernel3_blossom"
