@@ -47,6 +47,9 @@ for toolchain in $1; do
   BUILD_START=$(date +"%s")
   export CUR_TOOLCHAIN="${toolchain}"
 
+  if [ -f "mycfg/.config" ]; then
+    export KCONFIG_CONFIG="${maindir}/mycfg/.config"
+  fi
   bash -x "${outside}/toolchains/${toolchain}.sh" build ${defconfig} || exit 1
 
   if [ -e "${out_image}" ]; then

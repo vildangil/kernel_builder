@@ -50,7 +50,11 @@ if [[ ! -z "$2" ]]; then rm -rf out ../zipper; fi
 
 source ../$1env || { bash tg_utils.sh msg "$RUN_ID: incorrect envset: nonexistent env, bailing" && exit 127 ; }
 
-bash ../tg_utils.sh msg "kernel name: ${kernel_name}%nlkernel ver: ${kernel_ver}%nlkernel head commit: ${kernel_head}%nldefconfig: ${defconfig}"
+if [ -f "mycfg/.config" ]; then
+  bash ../tg_utils.sh msg "kernel name: ${kernel_name}%nlkernel ver: ${kernel_ver}%nlkernel head commit: ${kernel_head}%nlconfig: mycfg/.config"
+else
+  bash ../tg_utils.sh msg "kernel name: ${kernel_name}%nlkernel ver: ${kernel_ver}%nlkernel head commit: ${kernel_head}%nldefconfig: ${defconfig}"
+fi
 
 case $PATCH_KSU in
   "both" )
