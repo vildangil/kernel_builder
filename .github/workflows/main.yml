@@ -16,15 +16,15 @@ on: # [push]
       COMPILER:
         description: 'compilers used'
         required: true
-        default: 'Slim-LLVM'
+        default: 'shattered-Clang-15'
       KREPO:
         description: 'kernel repo'
         required: true
-        default: 'https://github.com/vildangil/Blackside_kernel_sashimi'
+        default: 'https://github.com/vildangil/blackside_kernel_xiaomi_blossom'
       KBRANCH:
         description: 'kernel branch'
         required: true
-        default: 'sashimi'
+        default: 'infinity'
       NOTES:
         description: 'notes to print out'
         required: false
@@ -42,7 +42,7 @@ on: # [push]
         required: false
         default: 'main'
       KSU:
-        description: 'if dont want ksu then leave blank'
+        description: 'KSU mode: blank=none, debug=logging without KSU, both=both, sus=KSU+SuSFS'
         required: false
         default: 'sus'
       TG_RECIPENT:
@@ -66,7 +66,7 @@ env:
   SUFFIX: ${{ github.event.inputs.SUFFIX }}
   zipper_repo: ${{ github.event.inputs.ZREPO }}
   zipper_branch: ${{ github.event.inputs.ZBRANCH }}
-  TZ: Africa/Tunis
+  TZ: Asia/Ho_Chi_Minh
 
 jobs:
   build:
@@ -90,7 +90,7 @@ jobs:
         - name: init build env
           run: |
             dnf group install development-tools -y
-            dnf install llvm lld bc bison ca-certificates curl flex glibc-devel.i686 glibc-devel binutils-devel openssl python3 python2 zstd clang gcc-arm-linux-gnu dtc libxml2 libarchive openssl-devel perl tomsfastmath-devel wget xz which git -y
+            dnf install llvm lld bc bison ca-certificates curl flex glibc-devel.i686 glibc-devel binutils-devel openssl python3 python2 zstd clang gcc-arm-linux-gnu dtc libxml2 libarchive openssl-devel perl tomsfastmath-devel wget xz -y
             ln -sf "/usr/bin/python3" /usr/bin/python
             git config --global user.name "John Doe"
             git config --global user.email "idk@example.com"
@@ -114,7 +114,7 @@ jobs:
           run: |
             cd kernel
             source ../env
-            bash ../tg_utils.sh msg "gh $RUN_NUM: kernel name: ${kernel_name}%nlgh $RUN_NUM: kernel ver: ${kernel_ver}%nlgh $RUN_NUM: kernel head commit: ${kernel_head}%nlgh $RUN_NUM: defconfig: ${defconfig}"
+            bash ../tg_utils.sh msg "gh $RUN_NUM: kernel name: ${kernel_name}%nlgh $RUN_NUM: kernel ver: ${kernel_ver}%nlgh $RUN_NUM: kernel head commit: ${kernel_head}%nldefconfig: ${defconfig}"
         - name: run compilation scripts
           run: |
             cd kernel
@@ -133,11 +133,16 @@ jobs:
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
-              "one" )
+              "debug" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: debug build enabled: KernelSU patching disabled, persistent kernel logging enabled"
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
-              "ksu" )
+              "" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
+              * )
                 bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
                 bash ../ksu/applyPatches.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
@@ -171,4 +176,3 @@ jobs:
             WORKFLOW_END=$(date +"%s")
             WDIFF=$((WORKFLOW_END - WORKFLOW_START))
             bash tg_utils.sh msg "gh $RUN_NUM: workflow ended in $((WDIFF / 60))m, $((WDIFF % 60))s"
-
