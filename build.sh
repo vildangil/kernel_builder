@@ -30,20 +30,18 @@ set_debug_config() {
     printf '%s=%s\n' "${key}" "${value}" >> "${cfg}"
   }
 
-  echo "debug: enabling persistent kernel logging in ${cfg}"
+echo "debug: enabling persistent kernel logging in ${cfg}"
 
-  set_cfg CONFIG_PSTORE y
-  set_cfg CONFIG_PSTORE_CONSOLE y
-  set_cfg CONFIG_PSTORE_PMSG y
-  set_cfg CONFIG_PSTORE_RAM y
+set_cfg CONFIG_PSTORE y
+set_cfg CONFIG_PSTORE_CONSOLE y
+set_cfg CONFIG_PSTORE_PMSG y
+set_cfg CONFIG_PSTORE_RAM y
 
-  set_cfg CONFIG_MTK_RAM_CONSOLE y
-  set_cfg CONFIG_MTK_AEE_FEATURE y
-  set_cfg CONFIG_MTK_AEE_MRDUMP y
+set_cfg CONFIG_MTK_RAM_CONSOLE y
 
-  set_cfg CONFIG_PRINTK y
-  set_cfg CONFIG_PRINTK_TIME y
-  set_cfg CONFIG_PANIC_TIMEOUT 1
+set_cfg CONFIG_PRINTK y
+set_cfg CONFIG_PRINTK_TIME y
+set_cfg CONFIG_PANIC_TIMEOUT 1
 
   echo "debug: resulting config entries:"
   grep -E '^(CONFIG_PSTORE|CONFIG_MTK_RAM_CONSOLE|CONFIG_MTK_AEE_FEATURE|CONFIG_MTK_AEE_MRDUMP|CONFIG_PRINTK|CONFIG_PRINTK_TIME|CONFIG_PANIC_TIMEOUT)=' "${cfg}" || :
