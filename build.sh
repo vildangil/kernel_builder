@@ -8,6 +8,54 @@ source "${outside}/$2env"
 
 [ -z "$NJOBS" ] && export NJOBS=$(nproc --all) || :
 
+set_debug_config() {
+  local cfg="${defconfig_file}"
+
+  if [[ ! -f "${cfg}" ]]; then
+    echo "debug: defconfig not found: ${cfg}"
+    exit 1
+  fi
+
+  set_cfg() {
+    local key="$1"
+    local value="$2"
+
+    # Remove an existing enabled/disabled entry first so the resulting
+    # defconfig contains exactly one value for every debug option.
+    sed -i \
+      -e "/^${key}=.*/d" \
+      -e "/^# ${key} is not set$/d" \
+      "${cfg}"
+
+    printf '%s=%s\n' "${key}" "${value}" >> "${cfg}"
+  }
+
+  echo "debug: enabling persistent kernel logging in ${cfg}"
+
+  set_cfg CONFIG_PSTORE y
+  set_cfg CONFIG_PSTORE_CONSOLE y
+  set_cfg CONFIG_PSTORE_PMSG y
+  set_cfg CONFIG_PSTORE_RAM y
+
+  set_cfg CONFIG_MTK_RAM_CONSOLE y
+  set_cfg CONFIG_MTK_AEE_FEATURE y
+  set_cfg CONFIG_MTK_AEE_MRDUMP y
+
+  set_cfg CONFIG_PRINTK y
+  set_cfg CONFIG_PRINTK_TIME y
+  set_cfg CONFIG_PANIC_TIMEOUT 1
+
+  echo "debug: resulting config entries:"
+  grep -E '^(CONFIG_PSTORE|CONFIG_MTK_RAM_CONSOLE|CONFIG_MTK_AEE_FEATURE|CONFIG_MTK_AEE_MRDUMP|CONFIG_PRINTK|CONFIG_PRINTK_TIME|CONFIG_PANIC_TIMEOUT)=' "${cfg}" || :
+}
+
+# PATCH_KSU=debug is intentionally a non-KSU build mode.
+# The wrapper/workflow only calls build.sh, while this script injects the
+# logging options before the toolchain generates out/.config.
+if [[ "${PATCH_KSU}" == "debug" ]]; then
+  set_debug_config
+fi
+
 pack() {
   if [ ! -d ${zipper} ]; then
     git clone ${zipper_repo} -b ${zipper_branch} "${zipper}" --single-branch --depth=1

@@ -14,9 +14,13 @@ kernel_repo="https://github.com/TelegramAt25/empty_kernel_xiaomi_blossom"
 # the branch you want to use in the repo above
 kernel_branch="enanan"
 
-# whether you want ksu patched in at build time or not
-# leave blank for "no", "both" for both ksu and non ksu, anything else for "yes"
-# require the patches for that version+patchlevel to be in ./ksu/patches
+# build mode / KernelSU patching
+# ""      = no KernelSU
+# "debug" = no KernelSU + enable pstore/ramoops/MTK AEE debug config
+# "both"  = build non-KSU and then KSU
+# "sus"   = KernelSU + SuSFS
+# anything else = KernelSU
+# KernelSU modes require matching patches in ./ksu/patches
 export PATCH_KSU=""
 
 # the compiler(s) to use

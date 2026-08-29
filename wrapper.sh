@@ -67,6 +67,11 @@ case $PATCH_KSU in
     bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
     bash ../build.sh "$COMPILERS"
   ;;
+  "debug" )
+    bash ../tg_utils.sh msg "debug build enabled: KernelSU patching disabled, persistent kernel logging enabled"
+    bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
+    bash ../build.sh "$COMPILERS" $1
+  ;;
   "" )
     bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
     bash ../build.sh "$COMPILERS" $1
