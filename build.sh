@@ -8,6 +8,157 @@ source "${outside}/$2env"
 
 [ -z "$NJOBS" ] && export NJOBS=$(nproc --all) || :
 
+make_pstore_readonly() {
+  local ram="${maindir}/fs/pstore/ram.c"
+  local core="${maindir}/fs/pstore/ram_core.c"
+
+  if [[ ! -f "${ram}" || ! -f "${core}" ]]; then
+    echo "debug: pstore source files not found"
+    echo "debug: expected ${ram}"
+    echo "debug: expected ${core}"
+    exit 1
+  fi
+
+  echo "debug: converting ramoops/persistent_ram to recovery read-only mode"
+
+  python3 - "${ram}" "${core}" <<'PY'
+import pathlib
+import re
+import sys
+
+ram_path = pathlib.Path(sys.argv[1])
+core_path = pathlib.Path(sys.argv[2])
+
+ram = ram_path.read_text()
+core = core_path.read_text()
+
+def replace_function(text, name, body):
+    pat = re.compile(
+        r'(?m)^[ \t]*(?:static[ \t]+)?[^\n;{}]*\b' +
+        re.escape(name) + r'[ \t]*\('
+    )
+    m = pat.search(text)
+    if not m:
+        raise RuntimeError(f"function not found: {name}")
+
+    paren = 0
+    seen_paren = False
+    brace = None
+    i = m.start()
+    while i < len(text):
+        ch = text[i]
+        if ch == '(':
+            paren += 1
+            seen_paren = True
+        elif ch == ')':
+            paren -= 1
+        elif ch == '{' and seen_paren and paren == 0:
+            brace = i
+            break
+        elif ch == ';' and seen_paren and paren == 0:
+            raise RuntimeError(f"matched declaration instead of definition: {name}")
+        i += 1
+
+    if brace is None:
+        raise RuntimeError(f"opening brace not found: {name}")
+
+    depth = 1
+    i = brace + 1
+    while i < len(text) and depth:
+        ch = text[i]
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+        i += 1
+
+    if depth:
+        raise RuntimeError(f"closing brace not found: {name}")
+
+    end_brace = i - 1
+    indent_body = "\n".join("\t" + line if line else "" for line in body.splitlines())
+    return text[:brace + 1] + "\n" + indent_body + "\n" + text[end_brace:]
+
+# fs/pstore/ram.c
+ram = replace_function(
+    ram,
+    "ramoops_pstore_write",
+    "/* Recovery reader: discard every kernel-side pstore write. */\nreturn 0;"
+)
+
+ram = replace_function(
+    ram,
+    "ramoops_pstore_write_user",
+    "/* Recovery reader: discard /dev/pmsg0 writes. */\nreturn 0;"
+)
+
+ram = replace_function(
+    ram,
+    "ramoops_pstore_erase",
+    "/* Never allow unlink/removal to clear backing persistent RAM. */\nreturn -EROFS;"
+)
+
+ram, zap_count = re.subn(
+    r'(?m)^[ \t]*persistent_ram_zap\([^;\n]+\);[ \t]*$',
+    '\t/* recovery reader: persistent_ram_zap intentionally disabled */',
+    ram,
+)
+if zap_count < 2:
+    raise RuntimeError(
+        f"expected at least 2 persistent_ram_zap() calls in ram.c, found {zap_count}"
+    )
+
+ram = ram.replace(
+    'pr_info("attached 0x%lx@0x%llx, ecc: %d/%d\\n",',
+    'pr_info("attached 0x%lx@0x%llx, ecc: %d/%d, recovery read-only\\n",',
+    1,
+)
+
+# fs/pstore/ram_core.c
+core = replace_function(
+    core,
+    "persistent_ram_write",
+    "/* Recovery reader: report success without touching persistent RAM. */\nreturn count;"
+)
+
+core = replace_function(
+    core,
+    "persistent_ram_write_user",
+    "/* Recovery reader: report success without touching persistent RAM. */\nreturn count;"
+)
+
+core = replace_function(
+    core,
+    "persistent_ram_zap",
+    "/* Recovery reader: never clear a persistent RAM zone. */\nreturn;"
+)
+
+core = replace_function(
+    core,
+    "persistent_ram_ecc_old",
+    "/* Recovery reader: do not perform in-place ECC correction. */\nreturn;"
+)
+
+sig_write = "prz->buffer->sig = sig;"
+if sig_write not in core:
+    raise RuntimeError("persistent RAM signature initialization not found")
+core = core.replace(
+    sig_write,
+    "/* recovery reader: do not initialize persistent RAM signature */",
+    1,
+)
+
+ram_path.write_text(ram)
+core_path.write_text(core)
+
+print(f"debug: patched {ram_path}")
+print(f"debug: patched {core_path}")
+print(f"debug: removed {zap_count} ramoops zap call(s)")
+PY
+
+  echo "debug: read-only pstore source conversion completed"
+}
+
 set_debug_config() {
   local cfg="${defconfig_file}"
 
@@ -20,8 +171,6 @@ set_debug_config() {
     local key="$1"
     local value="$2"
 
-    # Remove an existing enabled/disabled entry first so the resulting
-    # defconfig contains exactly one value for every debug option.
     sed -i \
       -e "/^${key}=.*/d" \
       -e "/^# ${key} is not set$/d" \
@@ -30,27 +179,26 @@ set_debug_config() {
     printf '%s=%s\n' "${key}" "${value}" >> "${cfg}"
   }
 
-echo "debug: enabling persistent kernel logging in ${cfg}"
+  echo "debug: enabling recovery pstore reader config in ${cfg}"
 
-set_cfg CONFIG_PSTORE y
-set_cfg CONFIG_PSTORE_CONSOLE y
-set_cfg CONFIG_PSTORE_PMSG y
-set_cfg CONFIG_PSTORE_RAM y
-
-set_cfg CONFIG_MTK_RAM_CONSOLE y
-
-set_cfg CONFIG_PRINTK y
-set_cfg CONFIG_PRINTK_TIME y
-set_cfg CONFIG_PANIC_TIMEOUT 1
+  set_cfg CONFIG_PSTORE y
+  set_cfg CONFIG_PSTORE_RAM y
+  set_cfg CONFIG_PSTORE_CONSOLE n
+  set_cfg CONFIG_PSTORE_PMSG n
+  set_cfg CONFIG_PSTORE_FTRACE n
+  set_cfg CONFIG_MTK_RAM_CONSOLE n
+  set_cfg CONFIG_PRINTK y
+  set_cfg CONFIG_PRINTK_TIME y
+  set_cfg CONFIG_PANIC_TIMEOUT 0
 
   echo "debug: resulting config entries:"
-  grep -E '^(CONFIG_PSTORE|CONFIG_MTK_RAM_CONSOLE|CONFIG_MTK_AEE_FEATURE|CONFIG_MTK_AEE_MRDUMP|CONFIG_PRINTK|CONFIG_PRINTK_TIME|CONFIG_PANIC_TIMEOUT)=' "${cfg}" || :
+  grep -E '^(CONFIG_PSTORE|CONFIG_MTK_RAM_CONSOLE|CONFIG_PRINTK|CONFIG_PRINTK_TIME|CONFIG_PANIC_TIMEOUT)=' "${cfg}" || :
 }
 
-# PATCH_KSU=debug is intentionally a non-KSU build mode.
-# The wrapper/workflow only calls build.sh, while this script injects the
-# logging options before the toolchain generates out/.config.
+# PATCH_KSU=debug is a non-KSU recovery-reader build.
+# Only the temporary cloned kernel source used by this Actions job is modified.
 if [[ "${PATCH_KSU}" == "debug" ]]; then
+  make_pstore_readonly
   set_debug_config
 fi
 
@@ -80,7 +228,7 @@ pack() {
   if apksigner version && [ -f "$SIGN_PK8" ] && [ -f "$SIGN_PEM" ] ; then
     apksigner sign --min-sdk-version 30 --key "$SIGN_PK8" --cert "$SIGN_PEM" "$1" && SIGNED=1
   fi
-  rm  -f ${maindir}/banner_append "${out_image}"
+  rm -f ${maindir}/banner_append "${out_image}"
   cd "${maindir}"
 }
 
