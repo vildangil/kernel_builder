@@ -114,6 +114,107 @@ ram = ram.replace(
     1,
 )
 
+# Legacy Android /proc/last_kmsg compatibility backed by the already-saved
+# previous-boot ramoops console buffer. This adds no second RAM logger.
+if '#include <linux/proc_fs.h>' not in ram:
+    include_anchor = '#include <linux/of_address.h>\n'
+    if include_anchor not in ram:
+        raise RuntimeError('ram.c include anchor not found for last_kmsg')
+    ram = ram.replace(
+        include_anchor,
+        include_anchor + '#include <linux/proc_fs.h>\n#include <linux/fs.h>\n',
+        1,
+    )
+
+last_kmsg_block = r'''
+/*
+ * Legacy Android compatibility: expose the previous ramoops console as
+ * /proc/last_kmsg without creating another persistent RAM logger.
+ */
+static struct proc_dir_entry *ramoops_last_kmsg_entry;
+
+static ssize_t ramoops_last_kmsg_read(struct file *file, char __user *buf,
+                                      size_t count, loff_t *ppos)
+{
+        struct persistent_ram_zone *prz = oops_cxt.cprz;
+        void *old;
+        size_t size;
+
+        if (!prz)
+                return 0;
+
+        size = persistent_ram_old_size(prz);
+        old = persistent_ram_old(prz);
+        if (!size || !old)
+                return 0;
+
+        return simple_read_from_buffer(buf, count, ppos, old, size);
+}
+
+static const struct file_operations ramoops_last_kmsg_fops = {
+        .owner  = THIS_MODULE,
+        .read   = ramoops_last_kmsg_read,
+        .llseek = default_llseek,
+};
+
+static void ramoops_register_last_kmsg(void)
+{
+        if (!oops_cxt.cprz || ramoops_last_kmsg_entry)
+                return;
+
+        ramoops_last_kmsg_entry =
+                proc_create("last_kmsg", 0440, NULL, &ramoops_last_kmsg_fops);
+        if (!ramoops_last_kmsg_entry) {
+                pr_warn("failed to create /proc/last_kmsg\n");
+                return;
+        }
+
+        pr_info("registered /proc/last_kmsg (%zu bytes)\n",
+                persistent_ram_old_size(oops_cxt.cprz));
+}
+
+static void ramoops_unregister_last_kmsg(void)
+{
+        if (!ramoops_last_kmsg_entry)
+                return;
+
+        remove_proc_entry("last_kmsg", NULL);
+        ramoops_last_kmsg_entry = NULL;
+}
+
+'''
+
+last_kmsg_anchor = 'static void ramoops_free_przs(struct ramoops_context *cxt)\n'
+if last_kmsg_anchor not in ram:
+    raise RuntimeError('ram.c ramoops_free_przs anchor not found for last_kmsg')
+if 'ramoops_last_kmsg_read' not in ram:
+    ram = ram.replace(last_kmsg_anchor, last_kmsg_block + last_kmsg_anchor, 1)
+
+probe_anchor = '''
+	/*
+	 * Update the module parameter variables as well so they are visible
+'''
+if probe_anchor not in ram:
+    raise RuntimeError('ram.c probe anchor not found for last_kmsg')
+if 'ramoops_register_last_kmsg();' not in ram:
+    ram = ram.replace(
+        probe_anchor,
+        '\n\tramoops_register_last_kmsg();\n' + probe_anchor,
+        1,
+    )
+
+remove_anchor = '\tpstore_unregister(&cxt->pstore);\n'
+if remove_anchor not in ram:
+    raise RuntimeError('ram.c remove anchor not found for last_kmsg')
+if 'ramoops_unregister_last_kmsg();' not in ram:
+    ram = ram.replace(
+        remove_anchor,
+        '\tramoops_unregister_last_kmsg();\n\n' + remove_anchor,
+        1,
+    )
+
+print('debug: injected /proc/last_kmsg compatibility')
+
 # fs/pstore/ram_core.c
 core = replace_function(
     core,
@@ -186,13 +287,14 @@ set_debug_config() {
   set_cfg CONFIG_PSTORE_CONSOLE n
   set_cfg CONFIG_PSTORE_PMSG n
   set_cfg CONFIG_PSTORE_FTRACE n
+  set_cfg CONFIG_PROC_FS y
   set_cfg CONFIG_MTK_RAM_CONSOLE n
   set_cfg CONFIG_PRINTK y
   set_cfg CONFIG_PRINTK_TIME y
   set_cfg CONFIG_PANIC_TIMEOUT 0
 
   echo "debug: resulting config entries:"
-  grep -E '^(CONFIG_PSTORE|CONFIG_MTK_RAM_CONSOLE|CONFIG_PRINTK|CONFIG_PRINTK_TIME|CONFIG_PANIC_TIMEOUT)=' "${cfg}" || :
+  grep -E '^(CONFIG_PSTORE|CONFIG_PROC_FS|CONFIG_MTK_RAM_CONSOLE|CONFIG_PRINTK|CONFIG_PRINTK_TIME|CONFIG_PANIC_TIMEOUT)=' "${cfg}" || :
 }
 
 # PATCH_KSU=debug is a non-KSU recovery-reader build.
