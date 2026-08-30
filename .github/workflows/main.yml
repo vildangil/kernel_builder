@@ -42,7 +42,7 @@ on: # [push]
         required: false
         default: 'main'
       KSU:
-        description: 'KSU mode: blank=none, debug=read-only pstore recovery, both=both, sus=KSU+SuSFS'
+        description: 'KSU mode: blank=none, debug=read-only pstore + /proc/last_kmsg recovery, both=both, sus=KSU+SuSFS'
         required: false
         default: 'sus'
       TG_RECIPENT:
@@ -134,7 +134,7 @@ jobs:
                 bash ../build.sh "$COMPILERS"
               ;;
               "debug" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: debug recovery build: KernelSU disabled, pstore read-only reader enabled"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: debug recovery build: KernelSU disabled, read-only pstore + /proc/last_kmsg enabled"
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
