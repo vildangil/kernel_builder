@@ -1,106 +1,123 @@
 #!/usr/bin/env bash
-#
-# wrapper providing almost the same amount of verbosity as the main github actions workflow
+# Local A03 Core wrapper with the same Telegram lifecycle as GitHub Actions.
+# Usage:
+#   ./wrapper.sh [env-prefix] [clean]
+# Examples:
+#   ./wrapper.sh
+#   ./wrapper.sh test clean   # sources testpriv_env + testenv
+
+set -o pipefail
 
 sln=$(readlink -f "$0")
 spath=$(dirname "$sln")
-echo $spath
-
 export OLDDIR=$(pwd)
-cd $spath
+cd "$spath" || exit 1
 
-source ./$1priv_env || { echo "$RUN_ID: incorrect envset: nonexistent priv_env, bailing" && exit 127 ; }
+PREFIX="${1:-}"
+PRIV_ENV="./${PREFIX}priv_env"
+PUBLIC_ENV="./${PREFIX}env"
+
+source "$PRIV_ENV" || {
+  echo "incorrect envset: $PRIV_ENV does not exist"
+  exit 127
+}
 
 RUN_ID=$(shuf -ern4 {0..9} | sha1sum - | head -c 8)
 RUN_START=$(date +"%s")
-#ALT_RECIPENT=$2
-#if [ ! -z $ALT_RECIPENT ]; then
-#  CHAT_ID="$ALT_RECIPENT"
-#fi
-bash tg_utils.sh msg "$RUN_ID: run started"
-bash tg_utils.sh msg "$RUN_ID: using envset $1"
+RES=0
 
-[ -z "$KDIR" ] && { echo "$RUN_ID: incorrect priv_env: KDIR was not set, bailing" && exit 127 ; } || :
+finish() {
+  local rc=$?
+  local run_end diff status
+  run_end=$(date +"%s")
+  diff=$((run_end - RUN_START))
+  if [ "$rc" -eq 0 ] && [ "$RES" = "1" ]; then
+    status="ended successfully"
+  else
+    status="failed"
+  fi
+  bash tg_utils.sh msg "$RUN_ID: A03 Core run $status in $((diff / 60))m, $((diff % 60))s%nlfs: ${BUILD_FILESYSTEM:-?}%nlroot: ${ROOT_SOLUTION:-?}%nlcm4 watchdog off: ${CM4_WATCHDOG_OFF:-?}" || true
+  cd "$OLDDIR" || true
+}
+trap finish EXIT
 
-bash tg_utils.sh msg "$RUN_ID: kernel dir: $KDIR"
+bash tg_utils.sh msg "$RUN_ID: A03 Core run started" || true
+bash tg_utils.sh msg "$RUN_ID: using envset '${PREFIX:-default}'" || true
 
-if [ ! -z "$NOTE" ]; then
-  bash tg_utils.sh msg "$NOTE"
+[ -z "$KDIR" ] && {
+  echo "$RUN_ID: KDIR was not set"
+  exit 127
+}
+
+: "${kernel_repo:=https://github.com/vildangil/android_kernel_m168}"
+: "${kernel_branch:=4.14.199-erofs}"
+: "${COMPILERS:=A03-Clang}"
+: "${BUILD_FILESYSTEM:=EROFS}"
+: "${ROOT_SOLUTION:=ReSukiSU}"
+: "${CM4_WATCHDOG_OFF:=true}"
+: "${PERMISSIVE:=false}"
+: "${DEFCONFIG:=a3core_eur_open_defconfig}"
+
+export kernel_repo kernel_branch COMPILERS BUILD_FILESYSTEM ROOT_SOLUTION
+export CM4_WATCHDOG_OFF PERMISSIVE DEFCONFIG
+
+bash tg_utils.sh msg "$RUN_ID: kernel dir: $KDIR%nlrepo: $kernel_repo%nlbranch: $kernel_branch" || true
+bash tg_utils.sh msg "$RUN_ID: fs=$BUILD_FILESYSTEM root=$ROOT_SOLUTION cm4_off=$CM4_WATCHDOG_OFF permissive=$PERMISSIVE compiler=$COMPILERS" || true
+
+if [ -n "$NOTE" ]; then
+  bash tg_utils.sh msg "$RUN_ID: $NOTE" || true
 fi
-if [ ! -z "$VERBOSE" ]; then
-  bash tg_utils.sh msg "host: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2)%nlfree disk space: $(df --sync -BM --output=avail / | grep -v Avail)"
-  bash tg_utils.sh msg "cloning kernel source%nlrepo: $kernel_repo%nlbranch: $kernel_branch"
+
+if [ -n "$VERBOSE" ]; then
+  bash tg_utils.sh msg "$RUN_ID: host: $(grep PRETTY_NAME /etc/os-release | cut -d'=' -f2)%nlfree disk: $(df --sync -BM --output=avail / | tail -n 1 | xargs)" || true
 fi
 
-if [ ! -d "$KDIR" ]; then
-  git clone ${kernel_repo} -b ${kernel_branch} "$KDIR" || exit 1
-  cd "$KDIR"
-  git submodule update --init --recursive
+if [ ! -d "$KDIR/.git" ]; then
+  rm -rf "$KDIR"
+  git clone --depth=1 --single-branch "$kernel_repo" -b "$kernel_branch" "$KDIR" || exit 1
 else
   cd "$KDIR" || exit 1
   git reset --hard
-  git checkout ${kernel_branch}
-  git fetch origin ${kernel_branch}
-  git reset --hard origin/${kernel_branch}
-  rm -rf KernelSU
+  git fetch origin "$kernel_branch"
+  git checkout "$kernel_branch"
+  git reset --hard "origin/$kernel_branch"
   git submodule update --init --recursive
+  cd "$spath" || exit 1
 fi
 
-if [[ ! -z "$2" ]]; then rm -rf out ../zipper; fi
-
-source ../$1env || { bash tg_utils.sh msg "$RUN_ID: incorrect envset: nonexistent env, bailing" && exit 127 ; }
-
-bash ../tg_utils.sh msg "kernel name: ${kernel_name}%nlkernel ver: ${kernel_ver}%nlkernel head commit: ${kernel_head}%nldefconfig: ${defconfig}"
-
-case $PATCH_KSU in
-  "both" )
-    bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
-    bash ../build.sh "$COMPILERS" $1
-    bash ../tg_utils.sh msg "KernelSU patching enabled, patching"
-    bash ../ksu/applyPatches.sh $1 || exit 1
-    bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
-    bash ../build.sh "$COMPILERS" $1
-  ;;
-  "sus" )
-    bash ../tg_utils.sh msg "KernelSU and SuSFS patching enabled, patching"
-    bash ../ksu/asus.sh
-    bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
-    bash ../build.sh "$COMPILERS"
-  ;;
-  "" )
-    bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
-    bash ../build.sh "$COMPILERS" $1
-  ;;
-  * )
-    bash ../tg_utils.sh msg "KernelSU patching enabled, patching"
-    bash ../ksu/applyPatches.sh $1 || exit 1
-    bash ../tg_utils.sh msg "running compilation script(s): $COMPILERS"
-    bash ../build.sh "$COMPILERS" $1
-  ;;
-esac
-
-if [[ $(ls *.log) ]]; then
-  for file in *.log ; do
-    if [ -e "${file}.info" ]; then
-      bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
-      export RES=0
-    fi
-  done
-fi
-if [[ $(ls *.zip) ]]; then
-  for file in *.zip ; do
-    bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
-    export RES=1
-  done
+if [ "${2:-}" = "clean" ]; then
+  rm -rf "$KDIR/out" "$spath/zipper-a3core" "$spath/a03-clang-r383902b" "$spath/a03-gcc-14.3"
 fi
 
-rm *.zip* *.log
-if [[ ! -z "$2" ]]; then
-  rm -rf out ../zipper
+cd "$KDIR" || exit 1
+source "../${PREFIX}env" || {
+  bash ../tg_utils.sh msg "$RUN_ID: public env '${PREFIX}env' missing" || true
+  exit 127
+}
+
+bash ../tg_utils.sh msg "$RUN_ID: kernel: ${kernel_name}%nlversion: ${kernel_ver}%nlhead: ${kernel_head}%nldefconfig: ${defconfig}" || true
+bash ../tg_utils.sh msg "$RUN_ID: preparing source" || true
+bash ../prepare_a3core.sh || exit 1
+
+bash ../tg_utils.sh msg "$RUN_ID: compilation started: $COMPILERS" || true
+bash ../build.sh "$COMPILERS" "$PREFIX" || exit 1
+
+shopt -s nullglob
+for file in *.log; do
+  caption="$RUN_ID: compiler log"
+  [ -f "${file}.info" ] && caption="$(cat "${file}.info")"
+  bash ../tg_utils.sh up "$file" "$caption" || true
+done
+
+for file in *.zip; do
+  caption="$RUN_ID: A03 Core build"
+  [ -f "${file}.info" ] && caption="$(cat "${file}.info")"
+  bash ../tg_utils.sh up "$file" "$caption" || true
+  RES=1
+done
+
+if [ "${2:-}" = "clean" ]; then
+  rm -rf out ../zipper-a3core
 fi
 
-RUN_END=$(date +"%s")
-WDIFF=$((RUN_END - RUN_START))
-[ "$RES" = "0" ] && bash ../tg_utils.sh msg "$RUN_ID: run failed in $((WDIFF / 60))m, $((WDIFF % 60))s" || bash ../tg_utils.sh msg "$RUN_ID: run ended in $((WDIFF / 60))m, $((WDIFF % 60))s"
-
-cd "$OLDDIR"
+exit 0
