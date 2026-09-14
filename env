@@ -1,39 +1,34 @@
 #!/bin/bash
-#
-# config and common vars
+# A03 Core / m168 builder environment
 
 export maindir="$(pwd)"
 export outside="${maindir}/.."
 
-#
-
 export ARCH="arm64"
 export SUBARCH="arm64"
-export KBUILD_BUILD_USER="nijuugo-ji"
-export KBUILD_BUILD_HOST="telegram-de"
+export KBUILD_BUILD_USER="VildanG"
+export KBUILD_BUILD_HOST="telegram-a3core"
 
-export defconfig="blossom_defconfig"
+export defconfig="${DEFCONFIG:-a3core_eur_open_defconfig}"
+export BUILD_FILESYSTEM="${BUILD_FILESYSTEM:-EROFS}"
+export ROOT_SOLUTION="${ROOT_SOLUTION:-ReSukiSU}"
 
 if [[ -z "$zipper_repo" ]]; then
-  export zipper_repo="https://github.com/Sakurajima07/AnyKernel3_blossom"
+  export zipper_repo="https://github.com/osm0sis/AnyKernel3"
 fi
 if [[ -z "$zipper_branch" ]]; then
-  export zipper_branch=main
+  export zipper_branch="master"
 fi
 
-export out_image="${maindir}/out/arch/${ARCH}/boot/Image.gz"
-export out_dtb="${maindir}/out/arch/${ARCH}/boot/dts/mediatek/mt6765.dtb"
-export out_dtbo="${maindir}/out/arch/${ARCH}/boot/dtbo.img"
-
-export zipper="${outside}/zipper"
-
-#
+export out_image="${maindir}/out/arch/${ARCH}/boot/Image"
+export out_dtb=""
+export out_dtbo=""
+export zipper="${outside}/zipper-a3core"
 
 export defconfig_file="${maindir}/arch/${ARCH}/configs/${defconfig}"
-
 export kernel_head="$(git log --pretty=format:'%h' -1)"
-export kernel_name=$(cat "${defconfig_file}" | grep "CONFIG_LOCALVERSION=" | sed 's/CONFIG_LOCALVERSION="-*//g' | sed 's/"*//g' )
 export kernel_ver="$(make kernelversion)"
-export TIME=$(date +"%y%m%d-%H%M")
+export kernel_name="A03-Core-${BUILD_FILESYSTEM}-${ROOT_SOLUTION}"
+export TIME="$(date +'%y%m%d-%H%M')"
 
 export zip_name="${maindir}/${kernel_name}${SUFFIX}-${TIME}-${kernel_head}.zip"
