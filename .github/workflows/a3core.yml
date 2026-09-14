@@ -1,276 +1,219 @@
-name: A03 Core Builder
+name: A03 Core Telegram Builder
 
 on:
   workflow_dispatch:
     inputs:
-      KERNEL_BRANCH:
-        description: 'android_kernel_m168 branch'
+      COMPILER:
+        description: 'compiler profile'
+        required: true
+        default: 'A03-Clang'
+      KREPO:
+        description: 'kernel repo'
+        required: true
+        default: 'https://github.com/vildangil/android_kernel_m168'
+      KBRANCH:
+        description: 'kernel branch'
         required: true
         default: '4.14.199-erofs'
-      defconfig:
-        description: 'Kernel defconfig'
-        required: true
-        default: 'a3core_eur_open_defconfig'
-      filesystem:
-        description: 'Filesystem support variant'
+      FILESYSTEM:
+        description: 'filesystem support'
         required: true
         type: choice
         options:
           - EROFS
           - EXT4
         default: EROFS
-      rootSolution:
-        description: 'Kernel root implementation'
+      ROOT_SOLUTION:
+        description: 'kernel root implementation'
         required: true
         type: choice
         options:
           - ReSukiSU
           - KernelSU-Next
         default: ReSukiSU
-      disableCm4Watchdog:
-        description: 'Disable PM_SYS/CM4 watchdog for reboot debugging'
-        required: true
-        type: boolean
-        default: false
-      isPermissive:
-        description: 'Force permissive SELinux kernel'
-        required: true
-        type: boolean
-        default: false
-      isFlashableZip:
-        description: 'Generate AnyKernel3 flashable zip'
+      CM4_WATCHDOG_OFF:
+        description: 'send watchdog rstoff to PM_SYS/CM4 (diagnostic)'
         required: true
         type: boolean
         default: true
+      PERMISSIVE:
+        description: 'apply permissive SELinux kernel patch'
+        required: true
+        type: boolean
+        default: false
+      NOTES:
+        description: 'notes to print/send'
+        required: false
+        default: ''
+      SUFFIX:
+        description: 'suffix appended to output zip'
+        required: false
+        default: ''
+      ZREPO:
+        description: 'AnyKernel3 repo'
+        required: true
+        default: 'https://github.com/osm0sis/AnyKernel3'
+      ZBRANCH:
+        description: 'AnyKernel3 branch'
+        required: true
+        default: 'master'
+      TG_RECIPENT:
+        description: 'Telegram chat/group id override'
+        required: false
+        default: '-1003535423659'
+      CONTAINER:
+        description: 'build container'
+        required: true
+        default: 'ubuntu:22.04'
+
+env:
+  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+  CHAT_ID: ${{ secrets.CHAT_ID }}
+  REPO: ${{ inputs.KREPO }}
+  RUN_NUM: ${{ github.run_number }}_${{ github.run_attempt }}
+  KERNEL_BRANCH: ${{ inputs.KBRANCH }}
+  NOTE: ${{ inputs.NOTES }}
+  COMPILERS: ${{ inputs.COMPILER }}
+  SUFFIX: ${{ inputs.SUFFIX }}
+  zipper_repo: ${{ inputs.ZREPO }}
+  zipper_branch: ${{ inputs.ZBRANCH }}
+  BUILD_FILESYSTEM: ${{ inputs.FILESYSTEM }}
+  ROOT_SOLUTION: ${{ inputs.ROOT_SOLUTION }}
+  CM4_WATCHDOG_OFF: ${{ inputs.CM4_WATCHDOG_OFF }}
+  PERMISSIVE: ${{ inputs.PERMISSIVE }}
+  DEFCONFIG: a3core_eur_open_defconfig
+  TZ: Europe/Riga
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    env:
-      ARCH: arm64
-      KERNEL_REPO: https://github.com/vildangil/android_kernel_m168
-      KERNEL_DIR: ${{ github.workspace }}/kernel
-      CROSS_COMPILE: "${{ github.workspace }}/toolchains/gcc-14.3/bin/aarch64-none-linux-gnu-"
-      CROSS_COMPILE_ARM32: "${{ github.workspace }}/toolchains/gcc-14.3/bin/arm-none-linux-gnueabihf-"
-      CC: clang
+    container:
+      image: ${{ inputs.CONTAINER }}
 
     steps:
-      - name: Checkout builder
+      - name: Checkout A03 builder implementation
         uses: actions/checkout@v4
+        with:
+          repository: vildangil/kernel_builder
+          ref: a3core
+          fetch-depth: 1
 
-      - name: Resolve build options
+      - name: Initialize build environment
         shell: bash
         run: |
           set -euxo pipefail
-          echo "KERNEL_BRANCH=${{ inputs.KERNEL_BRANCH }}" >> "$GITHUB_ENV"
-          echo "DEFCONFIG=${{ inputs.defconfig }}" >> "$GITHUB_ENV"
-          echo "FILESYSTEM=${{ inputs.filesystem }}" >> "$GITHUB_ENV"
-          echo "ROOT_SOLUTION=${{ inputs.rootSolution }}" >> "$GITHUB_ENV"
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y \
+            git curl wget ca-certificates make gcc g++ python3 bc \
+            libncurses-dev flex bison ccache libssl-dev libelf-dev \
+            libyaml-dev tar xz-utils zip unzip file rsync
+          ln -sf /usr/bin/python3 /usr/local/bin/python || true
+          git config --global --add safe.directory '*'
+          git config --global user.name 'VildanG Builder'
+          git config --global user.email 'builder@localhost'
 
-      - name: Install dependencies
+      - name: Initialize Telegram status
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            make gcc g++ python3 bc libncurses-dev flex bison ccache \
-            libssl-dev libelf-dev libyaml-dev wget curl tar xz-utils zip unzip git
+          echo "WORKFLOW_START=$(date +'%s')" >> "$GITHUB_ENV"
+          ALT_RECIPENT='${{ inputs.TG_RECIPENT }}'
+          if [ -n "$ALT_RECIPENT" ]; then
+            echo "CHAT_ID=$ALT_RECIPENT" >> "$GITHUB_ENV"
+          fi
+          bash tg_utils.sh msg "gh $RUN_NUM: A03 Core build started%nlbranch: $KERNEL_BRANCH%nlfs: $BUILD_FILESYSTEM%nlroot: $ROOT_SOLUTION%nlcm4 watchdog off: $CM4_WATCHDOG_OFF%nlcompiler: $COMPILERS" || true
 
-      - name: Clone A03 Core kernel
+      - name: Show host info
+        shell: bash
+        run: |
+          HOST_INFO="$(grep PRETTY_NAME /etc/os-release | cut -d= -f2- | tr -d '\"')"
+          FREE_SPACE="$(df --sync -BM --output=avail / | tail -n 1 | xargs)"
+          bash tg_utils.sh msg "gh $RUN_NUM: build env initialized%nlhost: $HOST_INFO%nlfree disk: $FREE_SPACE" || true
+
+      - name: Print notes
+        if: ${{ inputs.NOTES != '' }}
+        shell: bash
+        run: bash tg_utils.sh msg "gh $RUN_NUM: $NOTE" || true
+
+      - name: Clone kernel source
         shell: bash
         run: |
           set -euxo pipefail
-          git clone --depth 1 --single-branch \
-            --branch "$KERNEL_BRANCH" "$KERNEL_REPO" "$KERNEL_DIR"
-          git -C "$KERNEL_DIR" log -1 --oneline
+          bash tg_utils.sh msg "gh $RUN_NUM: cloning kernel%nlrepo: $REPO%nlbranch: $KERNEL_BRANCH" || true
+          git clone --depth=1 --single-branch "$REPO" -b "$KERNEL_BRANCH" kernel
 
-      - name: Setup GCC 14.3 and AOSP Clang
+      - name: Print kernel info
         shell: bash
         run: |
-          set -euxo pipefail
-          mkdir -p toolchains/gcc-14.3 toolchains/clang-r383902b
+          cd kernel
+          source ../env
+          INFO="gh $RUN_NUM: kernel: ${kernel_name}%nlversion: ${kernel_ver}%nlhead: ${kernel_head}%nldefconfig: ${defconfig}%nlfs: ${BUILD_FILESYSTEM}%nlroot: ${ROOT_SOLUTION}"
+          bash ../tg_utils.sh msg "$INFO" || true
 
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz -O clang.tar.gz
-          tar -xf clang.tar.gz -C toolchains/clang-r383902b
-          rm clang.tar.gz
-
-          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -O gcc.tar.xz
-          tar -xf gcc.tar.xz -C toolchains/gcc-14.3 --strip-components=1
-          rm gcc.tar.xz
-
-          echo "${{ github.workspace }}/toolchains/clang-r383902b/bin" >> "$GITHUB_PATH"
-          echo "${{ github.workspace }}/toolchains/gcc-14.3/bin" >> "$GITHUB_PATH"
-
-      - name: Integrate selected KernelSU implementation
+      - name: Prepare A03 Core kernel
         shell: bash
-        working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          set -euxo pipefail
+          cd kernel
+          bash ../tg_utils.sh msg "gh $RUN_NUM: preparing A03 Core source%nlReSukiSU/KSU + filesystem + watchdog options" || true
+          bash ../prepare_a3core.sh
 
-          rm -rf KernelSU KernelSU-Next
-          rm -f drivers/kernelsu
-
-          case "$ROOT_SOLUTION" in
-            KernelSU-Next)
-              curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/legacy/kernel/setup.sh" | bash -s legacy
-              ;;
-            ReSukiSU)
-              curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
-              ;;
-            *)
-              echo "Unsupported root solution: $ROOT_SOLUTION" >&2
-              exit 2
-              ;;
-          esac
-
-          readlink -f drivers/kernelsu
-          test -f drivers/kernelsu/Kconfig
-
-      - name: Disable CM4 watchdog for diagnostic build
-        if: ${{ inputs.disableCm4Watchdog == true }}
+      - name: Compile and pack
         shell: bash
-        working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          cd kernel
+          bash ../tg_utils.sh msg "gh $RUN_NUM: compilation started: $COMPILERS" || true
+          bash ../build.sh "$COMPILERS"
 
-          path = Path('drivers/watchdog/sprd_pmic_wdt.c')
-          text = path.read_text()
-
-          start = text.find('static bool sprd_pimc_wdt_en(void)')
-          end = text.find('static const struct of_device_id', start)
-          if start < 0 or end < 0:
-              raise SystemExit(f'Could not locate sprd_pimc_wdt_en() in {path}')
-
-          block = text[start:end]
-          old = '\treturn true;'
-          new = '\treturn false; /* diagnostic: disable PM_SYS/CM4 watchdog */'
-          if old not in block:
-              raise SystemExit('Expected final return true in sprd_pimc_wdt_en() not found')
-
-          block = block.replace(old, new, 1)
-          path.write_text(text[:start] + block + text[end:])
-          PY
-
-          sed -n '/static bool sprd_pimc_wdt_en/,/static const struct of_device_id/p' \
-            drivers/watchdog/sprd_pmic_wdt.c | tail -n 18
-
-      - name: Configure kernel
+      - name: Upload build files to Telegram
+        if: ${{ success() }}
         shell: bash
-        working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          set -euxo pipefail
+          cd kernel
+          shopt -s nullglob
+          for file in *.zip; do
+            caption="A03 Core build $RUN_NUM"
+            [ -f "${file}.info" ] && caption="$(cat "${file}.info")"
+            bash ../tg_utils.sh up "$file" "$caption" || true
+          done
+          for file in *.log; do
+            caption="A03 Core compiler log $RUN_NUM"
+            [ -f "${file}.info" ] && caption="$(cat "${file}.info")"
+            bash ../tg_utils.sh up "$file" "$caption" || true
+          done
 
-          make O=out ARCH="$ARCH" "$DEFCONFIG"
-          chmod +x scripts/config
+      - name: Upload GitHub artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: A03-Core-${{ inputs.FILESYSTEM }}-${{ inputs.ROOT_SOLUTION }}-${{ github.run_number }}
+          path: |
+            kernel/out/arch/arm64/boot/Image
+            kernel/out/.config
+            kernel/*.zip
+            kernel/*.log
+            kernel/*.info
+          if-no-files-found: warn
+          retention-days: 14
 
-          scripts/config --file out/.config -e KSU
-          scripts/config --file out/.config -e KSU_MANUAL_HOOK
-
-          if [ "$ROOT_SOLUTION" = "ReSukiSU" ]; then
-            scripts/config --file out/.config -d KSU_TRACEPOINT_HOOK || true
-            scripts/config --file out/.config -d KSU_SUSFS || true
-          else
-            scripts/config --file out/.config -d KSU_KPROBES_HOOK || true
+      - name: Upload failure log to Telegram
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          if [ -d kernel ]; then
+            cd kernel
+            shopt -s nullglob
+            for file in *.log; do
+              bash ../tg_utils.sh up "$file" "gh $RUN_NUM: failed compiler log" || true
+            done
           fi
 
-          case "$FILESYSTEM" in
-            EROFS)
-              scripts/config --file out/.config -e EROFS_FS
-              scripts/config --file out/.config -e EROFS_FS_XATTR
-              scripts/config --file out/.config -e EROFS_FS_POSIX_ACL
-              scripts/config --file out/.config -e EROFS_FS_SECURITY
-              scripts/config --file out/.config -e EROFS_FS_ZIP
-              scripts/config --file out/.config -e EROFS_FS_ARMV8_ACCELERATED_LZ4
-              scripts/config --file out/.config --set-val EROFS_FS_CLUSTER_PAGE_LIMIT 1
-              ;;
-            EXT4)
-              scripts/config --file out/.config -e EXT4_FS
-              scripts/config --file out/.config -e EXT4_FS_POSIX_ACL
-              scripts/config --file out/.config -e EXT4_FS_SECURITY
-              scripts/config --file out/.config -e EXT4_ENCRYPTION
-              scripts/config --file out/.config -e EXT4_FS_ENCRYPTION
-
-              scripts/config --file out/.config -d EROFS_FS
-              scripts/config --file out/.config -d EROFS_FS_XATTR || true
-              scripts/config --file out/.config -d EROFS_FS_POSIX_ACL || true
-              scripts/config --file out/.config -d EROFS_FS_SECURITY || true
-              scripts/config --file out/.config -d EROFS_FS_ZIP || true
-              scripts/config --file out/.config -d EROFS_FS_ARMV8_ACCELERATED_LZ4 || true
-              ;;
-            *)
-              echo "Unsupported filesystem: $FILESYSTEM" >&2
-              exit 2
-              ;;
-          esac
-
-          make O=out ARCH="$ARCH" olddefconfig
-
-          echo "===== KernelSU config ====="
-          grep -E '^CONFIG_KSU|^# CONFIG_KSU' out/.config || true
-          echo "===== Filesystem config ====="
-          grep -E '^CONFIG_(EROFS|EXT4)|^# CONFIG_(EROFS|EXT4)' out/.config || true
-
-      - name: Patch permissive
-        if: ${{ inputs.isPermissive == true }}
+      - name: Finish Telegram status
+        if: ${{ always() }}
         shell: bash
-        working-directory: ${{ env.KERNEL_DIR }}
+        env:
+          FINAL_STATUS: ${{ job.status }}
         run: |
-          set -euxo pipefail
-          git fetch --depth 1 origin KernelSU-permissive
-          git checkout FETCH_HEAD -- security/selinux/hooks.c security/selinux/selinuxfs.c
-
-      - name: Build kernel
-        shell: bash
-        working-directory: ${{ env.KERNEL_DIR }}
-        run: |
-          set -euxo pipefail
-
-          export KBUILD_BUILD_USER="VildanG"
-          export KBUILD_BUILD_HOST="$(. /etc/os-release && echo ${NAME}-${VERSION_ID})"
-          export KBUILD_BUILD_TIMESTAMP="$(date -R)"
-
-          sed -i '/yamltree.o/d' scripts/dtc/Makefile
-          sed -i '/dt_to_yaml/d' scripts/dtc/dtc.c
-
-          make O=out -j"$(nproc)" \
-            ARCH="$ARCH" CC="$CC" CROSS_COMPILE="$CROSS_COMPILE" \
-            CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" Image
-
-          test -s out/arch/arm64/boot/Image
-          sha256sum out/arch/arm64/boot/Image
-          ls -lh out/arch/arm64/boot/Image
-
-      - name: Build AnyKernel3 flashable zip
-        if: ${{ inputs.isFlashableZip == true }}
-        shell: bash
-        run: |
-          set -euxo pipefail
-          git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git AK3
-          cp "$KERNEL_DIR/out/arch/arm64/boot/Image" AK3/
-
-          cd AK3
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
-          sed -i "s/kernel.string=.*/kernel.string=A03-Core-${FILESYSTEM}-${ROOT_SOLUTION} by VildanG/g" anykernel.sh
-          sed -i 's|BLOCK=.*|BLOCK=auto;|g' anykernel.sh
-          sed -i 's/IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=0;/g' anykernel.sh
-          sed -i '/# init.rc/,/append_file fstab.tuna.*/d' anykernel.sh
-
-          zip -r9 "../A03-Core-${FILESYSTEM}-${ROOT_SOLUTION}.zip" . -x '.git/*' '.github/*'
-          cd ..
-          ls -lh "A03-Core-${FILESYSTEM}-${ROOT_SOLUTION}.zip"
-
-      - name: Upload kernel image
-        uses: actions/upload-artifact@v4
-        with:
-          name: A03-Core-Image-${{ env.FILESYSTEM }}-${{ env.ROOT_SOLUTION }}
-          path: |
-            ${{ env.KERNEL_DIR }}/out/arch/arm64/boot/Image
-            ${{ env.KERNEL_DIR }}/out/.config
-          retention-days: 14
-
-      - name: Upload AnyKernel3 zip
-        if: ${{ inputs.isFlashableZip == true }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: A03-Core-AnyKernel3-${{ env.FILESYSTEM }}-${{ env.ROOT_SOLUTION }}
-          path: ${{ github.workspace }}/A03-Core-${{ env.FILESYSTEM }}-${{ env.ROOT_SOLUTION }}.zip
-          retention-days: 14
+          WORKFLOW_END=$(date +'%s')
+          WORKFLOW_START=${WORKFLOW_START:-$WORKFLOW_END}
+          WDIFF=$((WORKFLOW_END - WORKFLOW_START))
+          bash tg_utils.sh msg "gh $RUN_NUM: A03 Core workflow ${FINAL_STATUS}%nltime: $((WDIFF / 60))m $((WDIFF % 60))s%nlfs: $BUILD_FILESYSTEM%nlroot: $ROOT_SOLUTION%nlcm4 watchdog off: $CM4_WATCHDOG_OFF" || true
