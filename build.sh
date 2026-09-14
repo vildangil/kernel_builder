@@ -1,6 +1,7 @@
 #!/bin/bash
-#
-# idk lmao
+# Generic builder flow adapted for Samsung Galaxy A03 Core (m168)
+
+set -o pipefail
 
 export maindir="$(pwd)"
 export outside="${maindir}/.."
@@ -9,64 +10,87 @@ source "${outside}/$2env"
 [ -z "$NJOBS" ] && export NJOBS=$(nproc --all) || :
 
 pack() {
-  if [ ! -d ${zipper} ]; then
-    git clone ${zipper_repo} -b ${zipper_branch} "${zipper}" --single-branch --depth=1
-    cd "${zipper}" || exit 1
+  local output_zip="$1"
+
+  if [ ! -d "${zipper}/.git" ]; then
+    rm -rf "${zipper}"
+    git clone "${zipper_repo}" -b "${zipper_branch}" "${zipper}" --single-branch --depth=1
   else
     cd "${zipper}" || exit 1
     git reset --hard
-    git checkout ${zipper_branch}
-    git fetch origin ${zipper_branch}
-    git reset --hard origin/${zipper_branch}
+    git fetch origin "${zipper_branch}"
+    git checkout "${zipper_branch}"
+    git reset --hard "origin/${zipper_branch}"
+    cd "${maindir}" || exit 1
   fi
-  cp -af "${out_image}" "${zipper}"
-  cp -af "${out_dtb}" "${zipper}/dtb"
-  find "${maindir}/out" -name '*.ko' > module_list.txt
-  xargs -d '\n' cp -v -t "${zipper}/modules/system/lib/modules/" < module_list.txt
-  [ -n "${out_dtbo}" ] && cp -af "${out_dtbo}" "${zipper}/dtbo.img"
-  if [ -e ${maindir}/banner_append ]; then
-    cat ${maindir}/banner_append >> ${zipper}/banner
-    if grep KernelSU ${maindir}/banner_append ; then
-      sed -i 's/do.skipmagisk=0/do.skipmagisk=1/g' ${zipper}/anykernel.sh || :
-    fi
+
+  cp -af "${out_image}" "${zipper}/Image"
+
+  cd "${zipper}" || exit 1
+  sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
+  sed -i "s/kernel.string=.*/kernel.string=A03-Core-${BUILD_FILESYSTEM}-${ROOT_SOLUTION} by VildanG/g" anykernel.sh
+  sed -i 's|BLOCK=.*|BLOCK=auto;|g' anykernel.sh
+  sed -i 's/IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=0;/g' anykernel.sh
+  sed -i '/# init.rc/,/append_file fstab.tuna.*/d' anykernel.sh
+
+  rm -f "${output_zip}"
+  zip -r9 "${output_zip}" . -x '.git/*' '.github/*' 'README.md'
+
+  if command -v apksigner >/dev/null 2>&1 && \
+     [ -f "$SIGN_PK8" ] && [ -f "$SIGN_PEM" ]; then
+    apksigner sign --min-sdk-version 30 --key "$SIGN_PK8" --cert "$SIGN_PEM" "$output_zip" && SIGNED=1
   fi
-  zip -r9 "$1" ./* -x .git README.md ./*placeholder
-  if apksigner version && [ -f "$SIGN_PK8" ] && [ -f "$SIGN_PEM" ] ; then
-    apksigner sign --min-sdk-version 30 --key "$SIGN_PK8" --cert "$SIGN_PEM" "$1" && SIGNED=1
-  fi
-  rm  -f ${maindir}/banner_append "${out_image}"
-  cd "${maindir}"
+
+  cd "${maindir}" || exit 1
 }
 
-# build
 for toolchain in $1; do
-  #rm -rf out
-
-  bash -x "${outside}/toolchains/${toolchain}.sh" setup
+  bash -x "${outside}/toolchains/${toolchain}.sh" setup || exit 1
 
   BUILD_START=$(date +"%s")
   export CUR_TOOLCHAIN="${toolchain}"
 
-  bash -x "${outside}/toolchains/${toolchain}.sh" build ${defconfig} || exit 1
-
-  if [ -e "${out_image}" ]; then
-    BUILD_END=$(date +"%s")
-    DIFF=$((BUILD_END - BUILD_START))
-    pack ${zip_name}
-    echo "build succeeded in $((DIFF / 60))m, $((DIFF % 60))s" > "${zip_name}.info"
-    echo "md5: <code>$(md5sum "${zip_name}" | cut -d' ' -f1)</code>" >> "${zip_name}.info"
-    echo "compiler: $(cat ${toolchain}.info)" >> "${zip_name}.info"
-    if [ "$SIGNED" = "1" ] ; then
-      echo "signed by <code>apksigner sign --min-sdk-version 30 --key $SIGN_PK8 --cert $SIGN_PEM</code>" >> "${zip_name}.info"
-    fi
-
-    echo "build succeeded in $((DIFF / 60))m, $((DIFF % 60))s" > "${toolchain}.log.info"
-    echo "ak3 zip file: <code>${zip_name}</code>" >> "${toolchain}.log.info"
-    echo "compiler: $(cat ${toolchain}.info)" >> "${toolchain}.log.info"
+  if bash -x "${outside}/toolchains/${toolchain}.sh" build "${defconfig}"; then
+    :
   else
     BUILD_END=$(date +"%s")
     DIFF=$((BUILD_END - BUILD_START))
     echo "build failed in $((DIFF / 60))m, $((DIFF % 60))s" > "${toolchain}.log.info"
-    echo "compiler: $(cat ${toolchain}.info)" >> "${toolchain}.log.info"
+    [ -f "${toolchain}.info" ] && echo "compiler: $(cat "${toolchain}.info")" >> "${toolchain}.log.info"
+    exit 1
+  fi
+
+  if [ -s "${out_image}" ]; then
+    BUILD_END=$(date +"%s")
+    DIFF=$((BUILD_END - BUILD_START))
+
+    pack "${zip_name}"
+
+    {
+      echo "build succeeded in $((DIFF / 60))m, $((DIFF % 60))s"
+      echo "device: Samsung Galaxy A03 Core (m168/sp9863a)"
+      echo "filesystem: ${BUILD_FILESYSTEM}"
+      echo "root: ${ROOT_SOLUTION}"
+      echo "kernel: $(sha256sum "${out_image}" | cut -d' ' -f1)"
+      echo "zip sha256: $(sha256sum "${zip_name}" | cut -d' ' -f1)"
+      echo "md5: <code>$(md5sum "${zip_name}" | cut -d' ' -f1)</code>"
+      [ -f "${toolchain}.info" ] && echo "compiler: $(cat "${toolchain}.info")"
+      if [ "$SIGNED" = "1" ]; then
+        echo "signed by apksigner"
+      fi
+    } > "${zip_name}.info"
+
+    {
+      echo "build succeeded in $((DIFF / 60))m, $((DIFF % 60))s"
+      echo "ak3 zip file: <code>${zip_name}</code>"
+      echo "filesystem: ${BUILD_FILESYSTEM}"
+      echo "root: ${ROOT_SOLUTION}"
+      [ -f "${toolchain}.info" ] && echo "compiler: $(cat "${toolchain}.info")"
+    } > "${toolchain}.log.info"
+  else
+    BUILD_END=$(date +"%s")
+    DIFF=$((BUILD_END - BUILD_START))
+    echo "build failed: Image was not produced after $((DIFF / 60))m, $((DIFF % 60))s" > "${toolchain}.log.info"
+    exit 1
   fi
 done
