@@ -19,17 +19,13 @@ on:
         description: 'filesystem support'
         required: true
         type: choice
-        options:
-          - EROFS
-          - EXT4
+        options: [EROFS, EXT4]
         default: EROFS
       ROOT_SOLUTION:
         description: 'kernel root implementation'
         required: true
         type: choice
-        options:
-          - ReSukiSU
-          - KernelSU-Next
+        options: [ReSukiSU, KernelSU-Next]
         default: ReSukiSU
       CM4_WATCHDOG_OFF:
         description: 'send watchdog rstoff to PM_SYS/CM4 (diagnostic)'
@@ -91,7 +87,7 @@ jobs:
       image: ${{ inputs.CONTAINER }}
 
     steps:
-      - name: Checkout A03 builder implementation
+      - name: Checkout A03 Core builder
         uses: actions/checkout@v4
         with:
           repository: vildangil/kernel_builder
@@ -112,14 +108,15 @@ jobs:
           git config --global --add safe.directory '*'
           git config --global user.name 'VildanG Builder'
           git config --global user.email 'builder@localhost'
+          echo "WORKFLOW_START=$(date +'%s')" >> "$GITHUB_ENV"
 
       - name: Initialize Telegram status
         shell: bash
         run: |
-          echo "WORKFLOW_START=$(date +'%s')" >> "$GITHUB_ENV"
           ALT_RECIPENT='${{ inputs.TG_RECIPENT }}'
           if [ -n "$ALT_RECIPENT" ]; then
             echo "CHAT_ID=$ALT_RECIPENT" >> "$GITHUB_ENV"
+            export CHAT_ID="$ALT_RECIPENT"
           fi
           bash tg_utils.sh msg "gh $RUN_NUM: A03 Core build started%nlbranch: $KERNEL_BRANCH%nlfs: $BUILD_FILESYSTEM%nlroot: $ROOT_SOLUTION%nlcm4 watchdog off: $CM4_WATCHDOG_OFF%nlcompiler: $COMPILERS" || true
 
@@ -147,14 +144,13 @@ jobs:
         run: |
           cd kernel
           source ../env
-          INFO="gh $RUN_NUM: kernel: ${kernel_name}%nlversion: ${kernel_ver}%nlhead: ${kernel_head}%nldefconfig: ${defconfig}%nlfs: ${BUILD_FILESYSTEM}%nlroot: ${ROOT_SOLUTION}"
-          bash ../tg_utils.sh msg "$INFO" || true
+          bash ../tg_utils.sh msg "gh $RUN_NUM: kernel: ${kernel_name}%nlversion: ${kernel_ver}%nlhead: ${kernel_head}%nldefconfig: ${defconfig}%nlfs: ${BUILD_FILESYSTEM}%nlroot: ${ROOT_SOLUTION}" || true
 
       - name: Prepare A03 Core kernel
         shell: bash
         run: |
           cd kernel
-          bash ../tg_utils.sh msg "gh $RUN_NUM: preparing A03 Core source%nlReSukiSU/KSU + filesystem + watchdog options" || true
+          bash ../tg_utils.sh msg "gh $RUN_NUM: preparing source%nlroot + filesystem + watchdog + SELinux options" || true
           bash ../prepare_a3core.sh
 
       - name: Compile and pack
@@ -164,7 +160,7 @@ jobs:
           bash ../tg_utils.sh msg "gh $RUN_NUM: compilation started: $COMPILERS" || true
           bash ../build.sh "$COMPILERS"
 
-      - name: Upload build files to Telegram
+      - name: Upload successful build to Telegram
         if: ${{ success() }}
         shell: bash
         run: |
@@ -180,6 +176,13 @@ jobs:
             [ -f "${file}.info" ] && caption="$(cat "${file}.info")"
             bash ../tg_utils.sh up "$file" "$caption" || true
           done
+          if [ -s out/arch/arm64/boot/Image ]; then
+            bash ../tg_utils.sh up out/arch/arm64/boot/Image "A03 Core raw Image | $BUILD_FILESYSTEM | $ROOT_SOLUTION | gh $RUN_NUM" || true
+          fi
+          if [ -f out/.config ]; then
+            cp out/.config "A03-Core-${BUILD_FILESYSTEM}-${ROOT_SOLUTION}.config"
+            bash ../tg_utils.sh up "A03-Core-${BUILD_FILESYSTEM}-${ROOT_SOLUTION}.config" "A03 Core .config | gh $RUN_NUM" || true
+          fi
 
       - name: Upload GitHub artifacts
         if: ${{ always() }}
@@ -189,13 +192,14 @@ jobs:
           path: |
             kernel/out/arch/arm64/boot/Image
             kernel/out/.config
+            kernel/*.config
             kernel/*.zip
             kernel/*.log
             kernel/*.info
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload failure log to Telegram
+      - name: Upload failure data to Telegram
         if: ${{ failure() }}
         shell: bash
         run: |
@@ -203,8 +207,9 @@ jobs:
             cd kernel
             shopt -s nullglob
             for file in *.log; do
-              bash ../tg_utils.sh up "$file" "gh $RUN_NUM: failed compiler log" || true
+              bash ../tg_utils.sh up "$file" "gh $RUN_NUM: failed A03 Core compiler log" || true
             done
+            [ -f out/.config ] && bash ../tg_utils.sh up out/.config "gh $RUN_NUM: failed build .config" || true
           fi
 
       - name: Finish Telegram status
