@@ -16,12 +16,13 @@ on:
         required: true
         default: '4.14.199-erofs'
       FILESYSTEM:
-        description: 'filesystem support'
+        description: 'filesystem build variant'
         required: true
         type: choice
         options:
           - EROFS
           - EXT4
+          - BOTH
         default: EROFS
       ROOT_SOLUTION:
         description: 'kernel root implementation'
@@ -155,9 +156,39 @@ jobs:
       - name: run compilation scripts
         shell: bash
         run: |
+          set -euo pipefail
           cd kernel
-          bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS" || true
-          bash ../build.sh "$COMPILERS"
+
+          build_variant() {
+            local fs="$1"
+            export BUILD_FILESYSTEM="$fs"
+
+            bash ../build.sh "$COMPILERS"
+
+            cp out/arch/arm64/boot/Image "A03-Core-${fs}-${ROOT_SOLUTION}.Image"
+            cp out/.config "A03-Core-${fs}-${ROOT_SOLUTION}.config"
+
+            shopt -s nullglob
+            for log in *.log; do
+              case "$log" in
+                *-EROFS.log|*-EXT4.log) continue ;;
+              esac
+              local renamed="${log%.log}-${fs}.log"
+              mv "$log" "$renamed"
+              if [ -f "${log}.info" ]; then
+                mv "${log}.info" "${renamed}.info"
+              fi
+            done
+          }
+
+          if [ "$BUILD_FILESYSTEM" = "BOTH" ]; then
+            bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS (EROFS + EXT4)" || true
+            build_variant EROFS
+            build_variant EXT4
+          else
+            bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS" || true
+            build_variant "$BUILD_FILESYSTEM"
+          fi
 
       - name: upload
         if: ${{ success() }}
@@ -184,6 +215,8 @@ jobs:
         with:
           name: A03-Core-${{ inputs.FILESYSTEM }}-${{ inputs.ROOT_SOLUTION }}-${{ github.run_number }}
           path: |
+            kernel/A03-Core-*.Image
+            kernel/A03-Core-*.config
             kernel/out/arch/arm64/boot/Image
             kernel/out/.config
             kernel/*.zip
