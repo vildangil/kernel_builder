@@ -6,11 +6,12 @@ set -e
 maindir="$(pwd)"
 outside="${maindir}/.."
 clang="${outside}/a03-clang-r383902b"
-gcc="${outside}/a03-gcc-14.3"
+gcc64="${outside}/a03-gcc64-14.3"
+gcc32="${outside}/a03-gcc32-14.3"
 
 case "$1" in
   setup)
-    mkdir -p "$clang" "$gcc"
+    mkdir -p "$clang" "$gcc64" "$gcc32"
 
     if [ ! -x "$clang/bin/clang" ]; then
       rm -rf "$clang"/*
@@ -21,25 +22,34 @@ case "$1" in
       rm -f "${outside}/a03-clang.tar.gz"
     fi
 
-    if [ ! -x "$gcc/bin/aarch64-none-linux-gnu-gcc" ]; then
-      rm -rf "$gcc"/*
+    if [ ! -x "$gcc64/bin/aarch64-none-linux-gnu-gcc" ]; then
+      rm -rf "$gcc64"/*
       wget -q \
         https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-linux-gnu.tar.xz \
-        -O "${outside}/a03-gcc.tar.xz"
-      tar -xf "${outside}/a03-gcc.tar.xz" -C "$gcc" --strip-components=1
-      rm -f "${outside}/a03-gcc.tar.xz"
+        -O "${outside}/a03-gcc64.tar.xz"
+      tar -xf "${outside}/a03-gcc64.tar.xz" -C "$gcc64" --strip-components=1
+      rm -f "${outside}/a03-gcc64.tar.xz"
+    fi
+
+    if [ ! -x "$gcc32/bin/arm-none-linux-gnueabihf-gcc" ]; then
+      rm -rf "$gcc32"/*
+      wget -q \
+        https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz \
+        -O "${outside}/a03-gcc32.tar.xz"
+      tar -xf "${outside}/a03-gcc32.tar.xz" -C "$gcc32" --strip-components=1
+      rm -f "${outside}/a03-gcc32.tar.xz"
     fi
     ;;
 
   build)
-    export PATH="$clang/bin:$gcc/bin:/usr/bin:${PATH}"
-    export CROSS_COMPILE="$gcc/bin/aarch64-none-linux-gnu-"
-    export CROSS_COMPILE_ARM32="$gcc/bin/arm-none-linux-gnueabihf-"
+    export PATH="$clang/bin:$gcc64/bin:$gcc32/bin:/usr/bin:${PATH}"
+    export CROSS_COMPILE="$gcc64/bin/aarch64-none-linux-gnu-"
+    export CROSS_COMPILE_ARM32="$gcc32/bin/arm-none-linux-gnueabihf-"
     export CC=clang
 
     export KBUILD_BUILD_USER="${KBUILD_BUILD_USER:-VildanG}"
-    export KBUILD_BUILD_HOST="${KBUILD_BUILD_HOST:-telegram-a3core}"
-    export KBUILD_BUILD_TIMESTAMP="$(date -R)"
+    export KBUILD_BUILD_HOST="${KBUILD_BUILD_HOST:-a3core-builder}"
+    export KBUILD_BUILD_TIMESTAMP="$(date -u -R)"
 
     rm -rf out
     make O=out ARCH=arm64 "$2"
@@ -55,6 +65,10 @@ case "$1" in
         ;;
       KernelSU-Next)
         scripts/config --file out/.config -d KSU_KPROBES_HOOK || true
+        ;;
+      *)
+        echo "Unsupported ROOT_SOLUTION=${ROOT_SOLUTION}" >&2
+        exit 2
         ;;
     esac
 
@@ -82,7 +96,7 @@ case "$1" in
         scripts/config --file out/.config -d EROFS_FS_ARMV8_ACCELERATED_LZ4 || true
         ;;
       *)
-        echo "Unsupported filesystem: $BUILD_FILESYSTEM" >&2
+        echo "Unsupported BUILD_FILESYSTEM=${BUILD_FILESYSTEM}" >&2
         exit 2
         ;;
     esac
@@ -108,7 +122,8 @@ case "$1" in
     test -s out/arch/arm64/boot/Image
     {
       "$clang/bin/clang" --version | head -n 1
-      "$gcc/bin/aarch64-none-linux-gnu-gcc" --version | head -n 1
+      "$gcc64/bin/aarch64-none-linux-gnu-gcc" --version | head -n 1
+      "$gcc32/bin/arm-none-linux-gnueabihf-gcc" --version | head -n 1
     } | tr '\n' ' ' > "${CUR_TOOLCHAIN}.info"
     ;;
 
