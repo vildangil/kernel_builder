@@ -1,0 +1,66 @@
+name: A03 Passive PM_SYS Test Images
+
+on:
+  push:
+    branches:
+      - a3core
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        filesystem: [EROFS, EXT4]
+    env:
+      ROOT_SOLUTION: ReSukiSU
+      BUILD_FILESYSTEM: ${{ matrix.filesystem }}
+      CM4_WATCHDOG_OFF: 'true'
+      PERMISSIVE: 'false'
+      DEFCONFIG: a3core_eur_open_defconfig
+      COMPILERS: A03-Clang
+      zipper_repo: https://github.com/osm0sis/AnyKernel3
+      zipper_branch: master
+      SUFFIX: passive-pmsys
+      NOTE: passive PM_SYS diagnostic build
+
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          ref: a3core
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl wget ca-certificates make gcc g++ python3 bc libncurses-dev flex bison ccache libssl-dev libelf-dev libyaml-dev tar xz-utils zip unzip file rsync
+
+      - name: Clone passive PM_SYS kernel
+        run: |
+          git clone --depth=1 --single-branch -b chatgpt/passive-pmsys-wdt https://github.com/vildangil/android_kernel_m168 kernel
+
+      - name: Prepare source
+        working-directory: kernel
+        run: bash ../prepare_a3core.sh
+
+      - name: Build ${{ matrix.filesystem }}
+        working-directory: kernel
+        run: |
+          bash ../build.sh "$COMPILERS"
+          cp out/arch/arm64/boot/Image "A03-Core-${BUILD_FILESYSTEM}-ReSukiSU-passive-pmsys.Image"
+          cp out/.config "A03-Core-${BUILD_FILESYSTEM}-ReSukiSU-passive-pmsys.config"
+          sha256sum "A03-Core-${BUILD_FILESYSTEM}-ReSukiSU-passive-pmsys.Image"
+
+      - name: Upload ${{ matrix.filesystem }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: A03-Core-${{ matrix.filesystem }}-ReSukiSU-passive-pmsys
+          path: |
+            kernel/A03-Core-${{ matrix.filesystem }}-ReSukiSU-passive-pmsys.Image
+            kernel/A03-Core-${{ matrix.filesystem }}-ReSukiSU-passive-pmsys.config
+            kernel/*.zip
+            kernel/*.log
+            kernel/*.info
+          if-no-files-found: error
+          retention-days: 7
