@@ -19,13 +19,17 @@ on:
         description: 'filesystem support'
         required: true
         type: choice
-        options: [EROFS, EXT4]
+        options:
+          - EROFS
+          - EXT4
         default: EROFS
       ROOT_SOLUTION:
         description: 'kernel root implementation'
         required: true
         type: choice
-        options: [ReSukiSU, KernelSU-Next]
+        options:
+          - ReSukiSU
+          - KernelSU-Next
         default: ReSukiSU
       CM4_WATCHDOG_OFF:
         description: 'send watchdog rstoff to PM_SYS/CM4 (diagnostic)'
@@ -130,7 +134,8 @@ jobs:
       - name: Print notes
         if: ${{ inputs.NOTES != '' }}
         shell: bash
-        run: bash tg_utils.sh msg "gh $RUN_NUM: $NOTE" || true
+        run: |
+          bash tg_utils.sh msg "gh $RUN_NUM: $NOTE" || true
 
       - name: Clone kernel source
         shell: bash
