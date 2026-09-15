@@ -1,36 +1,33 @@
-# Copy this file to priv_env (or <name>priv_env when using wrapper.sh <name>)
-# and replace the placeholders below.
+#!/bin/bash
+# Local configuration template for Samsung Galaxy A03 Core (m168/sp9863a).
+# Copy this file to priv_env and adjust Telegram values if you want notifications.
 
-# Telegram bot token used by tg_utils.sh
-export BOT_TOKEN="PUT_YOUR_BOT_TOKEN_HERE"
+# Telegram bot (optional for local builds)
+export BOT_TOKEN=""
+export CHAT_ID=""
 
-# Telegram chat/group ID
-export CHAT_ID="PUT_YOUR_CHAT_ID_HERE"
+# Kernel checkout directory used by run_a3core.sh
+export KDIR="kernel"
 
-# Local kernel checkout directory, relative or absolute
-export KDIR="kernel-a3core"
-
-# Samsung Galaxy A03 Core / m168 kernel source
+# Kernel source
 export kernel_repo="https://github.com/vildangil/android_kernel_m168"
 export kernel_branch="4.14.199-erofs"
 
-# Compiler profile from ./toolchains, without .sh
+# Build profile
+export DEFCONFIG="a3core_eur_open_defconfig"
 export COMPILERS="A03-Clang"
-
-# A03 Core build options
 export BUILD_FILESYSTEM="EROFS"       # EROFS or EXT4
 export ROOT_SOLUTION="ReSukiSU"       # ReSukiSU or KernelSU-Next
-export CM4_WATCHDOG_OFF="true"         # diagnostic PM_SYS watchdog rstoff
-export PERMISSIVE="false"              # true to apply KernelSU-permissive SELinux files
-export DEFCONFIG="a3core_eur_open_defconfig"
+export CM4_WATCHDOG_OFF="true"         # true/false diagnostic PM_SYS watchdog command
+export PERMISSIVE="false"              # true/false
 
-# AnyKernel3 output
+# AnyKernel3
 export zipper_repo="https://github.com/osm0sis/AnyKernel3"
 export zipper_branch="master"
-export SUFFIX=""
 
-# Optional message sent by wrapper.sh
+# Optional output suffix and notes
+export SUFFIX=""
 export NOTE=""
 
-# Uncomment for extra host/repository messages
+# Uncomment for extra Telegram messages in local scripts
 # export VERBOSE=yes
