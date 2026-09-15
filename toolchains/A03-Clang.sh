@@ -9,34 +9,65 @@ clang="${outside}/a03-clang-r383902b"
 gcc64="${outside}/a03-gcc64-14.3"
 gcc32="${outside}/a03-gcc32-14.3"
 
+fetch_archive() {
+  local url="$1"
+  local out="$2"
+  local kind="$3"
+  local i
+
+  for i in 1 2 3 4 5; do
+    rm -f "$out"
+    echo "Downloading $(basename "$out") (attempt $i/5)..."
+    if wget --timeout=60 --tries=2 --retry-connrefused -O "$out" "$url"; then
+      case "$kind" in
+        tgz)
+          if tar -tzf "$out" >/dev/null 2>&1; then
+            return 0
+          fi
+          ;;
+        txz)
+          if tar -tJf "$out" >/dev/null 2>&1; then
+            return 0
+          fi
+          ;;
+      esac
+    fi
+    echo "Archive download/verification failed, retrying..." >&2
+    sleep $((i * 3))
+  done
+
+  echo "Failed to download a valid archive from $url" >&2
+  return 1
+}
+
 case "$1" in
   setup)
     mkdir -p "$clang" "$gcc64" "$gcc32"
 
     if [ ! -x "$clang/bin/clang" ]; then
       rm -rf "$clang"/*
-      wget -q \
+      fetch_archive \
         https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz \
-        -O "${outside}/a03-clang.tar.gz"
-      tar -xf "${outside}/a03-clang.tar.gz" -C "$clang"
+        "${outside}/a03-clang.tar.gz" tgz
+      tar -xzf "${outside}/a03-clang.tar.gz" -C "$clang"
       rm -f "${outside}/a03-clang.tar.gz"
     fi
 
     if [ ! -x "$gcc64/bin/aarch64-none-linux-gnu-gcc" ]; then
       rm -rf "$gcc64"/*
-      wget -q \
+      fetch_archive \
         https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-linux-gnu.tar.xz \
-        -O "${outside}/a03-gcc64.tar.xz"
-      tar -xf "${outside}/a03-gcc64.tar.xz" -C "$gcc64" --strip-components=1
+        "${outside}/a03-gcc64.tar.xz" txz
+      tar -xJf "${outside}/a03-gcc64.tar.xz" -C "$gcc64" --strip-components=1
       rm -f "${outside}/a03-gcc64.tar.xz"
     fi
 
     if [ ! -x "$gcc32/bin/arm-none-linux-gnueabihf-gcc" ]; then
       rm -rf "$gcc32"/*
-      wget -q \
+      fetch_archive \
         https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz \
-        -O "${outside}/a03-gcc32.tar.xz"
-      tar -xf "${outside}/a03-gcc32.tar.xz" -C "$gcc32" --strip-components=1
+        "${outside}/a03-gcc32.tar.xz" txz
+      tar -xJf "${outside}/a03-gcc32.tar.xz" -C "$gcc32" --strip-components=1
       rm -f "${outside}/a03-gcc32.tar.xz"
     fi
     ;;
