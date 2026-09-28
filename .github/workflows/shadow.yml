@@ -50,22 +50,22 @@ on:
 env:
   BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
   CHAT_ID: ${{ secrets.CHAT_ID }}
-  REPO: ${{ github.event.inputs.KREPO }}
+  REPO: ${{ inputs.KREPO }}
   RUN_NUM: ${{ github.run_number }}_${{ github.run_attempt }}
-  KERNEL_BRANCH: ${{ github.event.inputs.KBRANCH }}
-  NOTE: ${{ github.event.inputs.NOTES }}
-  COMPILERS: ${{ github.event.inputs.COMPILER }}
-  PATCH_KSU: ${{ github.event.inputs.KSU }}
-  SUFFIX: ${{ github.event.inputs.SUFFIX }}
-  zipper_repo: ${{ github.event.inputs.ZREPO }}
-  zipper_branch: ${{ github.event.inputs.ZBRANCH }}
+  KERNEL_BRANCH: ${{ inputs.KBRANCH }}
+  NOTE: ${{ inputs.NOTES }}
+  COMPILERS: ${{ inputs.COMPILER }}
+  PATCH_KSU: ${{ inputs.KSU }}
+  SUFFIX: ${{ inputs.SUFFIX }}
+  zipper_repo: ${{ inputs.ZREPO }}
+  zipper_branch: ${{ inputs.ZBRANCH }}
   TZ: Asia/Ho_Chi_Minh
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ${{ github.event.inputs.CONTAINER }}
+      image: ${{ inputs.CONTAINER }}
 
     steps:
         - name: checkout
@@ -73,7 +73,7 @@ jobs:
         - name: why
           run: |
             echo WORKFLOW_START=$(date +"%s") >> $GITHUB_ENV
-            ALT_RECIPENT=${{ github.event.inputs.TG_RECIPENT }}
+            ALT_RECIPENT=${{ inputs.TG_RECIPENT }}
             if [ ! -z $ALT_RECIPENT ]; then
               echo CHAT_ID="$ALT_RECIPENT" >> $GITHUB_ENV
             fi
