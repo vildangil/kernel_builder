@@ -27,10 +27,10 @@ export out_dtbo="${maindir}/out/arch/${ARCH}/boot/dtbo.img"
 
 export zipper="${outside}/zipper"
 
-export defconfig_file="${maindir}/arch/${ARCH}/configs/${defconfig}
+export defconfig_file="${maindir}/arch/${ARCH}/configs/${defconfig}"
 
 export kernel_head="$(git log --pretty=format:'%h' -1)"
-export kernel_name=$(cat "${defconfig_file}" | grep "CONFIG_LOCALVERSION=" | sed 's/CONFIG_LOCALVERSION="-*//g' | sed 's/"*//g' )
+export kernel_name=$(cat "${defconfig_file}" | grep "CONFIG_LOCALVERSION=" | sed 's/CONFIG_LOCALVERSION="-*//g' | sed 's/"*//g')
 export kernel_ver="$(make kernelversion)"
 export TIME=$(date +"%y%m%d-%H%M")
 
