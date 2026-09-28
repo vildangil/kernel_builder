@@ -8,7 +8,7 @@ source "${outside}/$1env"
 
 curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s legacy
 git add . && git commit -am "drivers: KernelSU"
-KSU_git_ver=$(cd WhiteSU && git rev-list --count HEAD)
+KSU_git_ver=$(cd ReSukiSU && git rev-list --count HEAD)
 KSU_ver=$KSU_git_ver
 
 patchesdir="$outside/ksu/hooks/"
