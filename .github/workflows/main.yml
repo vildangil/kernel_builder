@@ -36,11 +36,11 @@ on: # [push]
       ZREPO:
         description: 'zipper repo'
         required: false
-        default: 'https://github.com/vildangil/BlackSide_Kernel_Blossom_AnyKernel3'
+        default: 'https://github.com/vildangil/BlackSide_Kernel_AnyKernel3'
       ZBRANCH:
         description: 'zipper branch'
         required: false
-        default: 'main'
+        default: 'blossom'
       KSU:
         description: 'if dont want ksu then leave blank'
         required: false
