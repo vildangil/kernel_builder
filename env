@@ -9,16 +9,16 @@ export outside="${maindir}/.."
 
 export ARCH="arm64"
 export SUBARCH="arm64"
-export KBUILD_BUILD_USER="MrGadget84"
+export KBUILD_BUILD_USER="vildangil"
 export KBUILD_BUILD_HOST="github"
 
-export defconfig="a32_lineage_defconfig"
+export defconfig="rosemary_defconfig"
 
 if [[ -z "$zipper_repo" ]]; then
-  export zipper_repo="https://github.com/MrGadget84/AnyKernel3_samsung"
+  export zipper_repo="https://github.com/vildangil/BlackSide_Kernel_AnyKernel3"
 fi
 if [[ -z "$zipper_branch" ]]; then
-  export zipper_branch=a325f
+  export zipper_branch=rosemary
 fi
 
 export out_image="${maindir}/out/arch/${ARCH}/boot/Image.gz"
@@ -27,16 +27,7 @@ export out_dtbo="${maindir}/out/arch/${ARCH}/boot/dtbo.img"
 
 export zipper="${outside}/zipper"
 
-#
-
-export defconfig_file="${maindir}/arch/${ARCH}/configs/${defconfig}"
-
-if [ ! -f "${defconfig_file}" ]; then
-  if [ -f "${maindir}/arch/${ARCH}/configs/mt6768-unifiedk414_lineage_defconfig" ]; then
-    echo "New modular Kbuild detected! Adjusting vars for branch Infinity..."
-    cat "${maindir}/arch/${ARCH}/configs/mt6768-unifiedk414_lineage_defconfig" "${maindir}/arch/${ARCH}/configs/a32.config" > "${maindir}/arch/${ARCH}/configs/a32_lineage_defconfig"
-  fi
-fi
+export defconfig_file="${maindir}/arch/${ARCH}/configs/${defconfig}
 
 export kernel_head="$(git log --pretty=format:'%h' -1)"
 export kernel_name=$(cat "${defconfig_file}" | grep "CONFIG_LOCALVERSION=" | sed 's/CONFIG_LOCALVERSION="-*//g' | sed 's/"*//g' )
