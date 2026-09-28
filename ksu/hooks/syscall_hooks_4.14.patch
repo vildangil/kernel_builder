@@ -1,0 +1,193 @@
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index f9f3d626..185ceff1 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -436,11 +436,20 @@ static void input_handle_event(struct input_dev *dev,
+  * to 'seed' initial state of a switch or initial position of absolute
+  * axis, etc.
+  */
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++extern bool ksu_input_hook __read_mostly;
++extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
++#endif
+ void input_event(struct input_dev *dev,
+ 		 unsigned int type, unsigned int code, int value)
+ {
+ 	unsigned long flags;
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	if (unlikely(ksu_input_hook))
++		ksu_handle_input_handle_event(&type, &code, &value);
++#endif
++
+ 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
+ 
+ 		spin_lock_irqsave(&dev->event_lock, flags);
+diff --git a/fs/exec.c b/fs/exec.c
+index 8d5ae3de..9307d129 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1950,6 +1950,13 @@
+ #if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++__attribute__((hot))
++extern int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
++			       void *__never_use_argv, void *__never_use_envp,
++			       int *__never_use_flags);
++#endif
++
+ SYSCALL_DEFINE3(execve,
+ 		const char __user *, filename,
+ 		const char __user *const __user *, argv,
+ 		const char __user *const __user *, envp)
+ {
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++#endif
+ 	return do_execve(getname(filename), argv, envp);
+ }
+ 
+@@ -1976,6 +1983,9 @@ COMPAT_SYSCALL_DEFINE3(execve, const char __user *, filename,
+ 	const compat_uptr_t __user *, argv,
+ 	const compat_uptr_t __user *, envp)
+ {
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK) // 32-bit su and 32-on-64 support
++	ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++#endif
+ 	return compat_do_execve(getname(filename), argv, envp);
+ }
+ 
+diff --git a/fs/open.c b/fs/open.c
+index 3b62683f..908ce836 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -359,6 +359,12 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+ #if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
+ __attribute__((hot))
+ extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
++		               int *mode, int *flags);
++#endif
++
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
+ 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
+ 		return -EINVAL;
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 0da6e4f1..25a850ba 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -568,11 +568,22 @@ static inline void file_pos_write(struct file *file, loff_t pos)
+ 		file->f_pos = pos;
+ }
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++extern bool ksu_vfs_read_hook __read_mostly;
++extern int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
++			size_t *count_ptr);
++#endif
++
+ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ {
+ 	struct fd f = fdget_pos(fd);
+ 	ssize_t ret = -EBADF;
+ 
++	
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	if (unlikely(ksu_vfs_read_hook))
++		ksu_handle_sys_read(fd, &buf, &count);
++#endif
+ 	if (f.file) {
+ 		loff_t pos = file_pos_read(f.file);
+ 		ret = vfs_read(f.file, buf, count, &pos);
+diff --git a/fs/stat.c b/fs/stat.c
+index 0fda4b6b..478dfefd 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -353,6 +353,12 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++__attribute__((hot))
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user,
++		               int *flags);
++#endif
++
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -360,6 +366,9 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -504,6 +513,9 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -644,6 +656,9 @@ COMPAT_SYSCALL_DEFINE4(newfstatat, unsigned int, dfd,
+ 	struct kstat stat;
+ 	int error;
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+index 2946ed1d..c8d49cee 100644
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -277,6 +277,12 @@ static DEFINE_MUTEX(reboot_mutex);
+ #if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
+ extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
+ #endif
+ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 		void __user *, arg)
+ {
+ 	struct pid_namespace *pid_ns = task_active_pid_ns(current);
+ 	char buffer[256];
+ 	int ret = 0;
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
++#endif
+ 
+ 	/* We only trust the superuser with rebooting the system. */
+ 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
+diff --git a/kernel/sys.c b/kernel/sys.c
+index 195f3c87..bbd3e446 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -595,6 +595,10 @@ SYSCALL_DEFINE1(setuid, uid_t, uid)
+ #if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
+ extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+ #endif
+ 
+ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
+ {
+ 	struct user_namespace *ns = current_user_ns();
+@@ -607,6 +611,11 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
+ 	keuid = make_kuid(ns, euid);
+ 	ksuid = make_kuid(ns, suid);
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	if (ksu_handle_setresuid(ruid, euid, suid)) {
++		pr_info("Something wrong with ksu_handle_setresuid()\n");
++	}
++#endif
+ 	if ((ruid != (uid_t) -1) && !uid_valid(kruid))
+ 		return -EINVAL;

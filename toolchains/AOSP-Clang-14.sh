@@ -23,7 +23,8 @@ case $1 in
 
   "build" )
     export PATH="$clang/bin:$gcc64/bin:$gcc/bin:/usr/bin:${PATH}"
-    make -j$NJOBS O=out CC=clang LD=ld.lld ARCH=arm64 SUBARCH=arm64 $2
+    make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld a32_lineage_defconfig
+    make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld olddefconfig
     make -j$NJOBS O=out \
       CROSS_COMPILE="aarch64-linux-android-" \
       CROSS_COMPILE_ARM32="arm-linux-androideabi-" \

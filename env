@@ -9,20 +9,20 @@ export outside="${maindir}/.."
 
 export ARCH="arm64"
 export SUBARCH="arm64"
-export KBUILD_BUILD_USER="nijuugo-ji"
-export KBUILD_BUILD_HOST="telegram-de"
+export KBUILD_BUILD_USER="MrGadget84"
+export KBUILD_BUILD_HOST="github"
 
-export defconfig="blossom_defconfig"
+export defconfig="a32_lineage_defconfig"
 
 if [[ -z "$zipper_repo" ]]; then
-  export zipper_repo="https://github.com/Sakurajima07/AnyKernel3_blossom"
+  export zipper_repo="https://github.com/MrGadget84/AnyKernel3_samsung"
 fi
 if [[ -z "$zipper_branch" ]]; then
-  export zipper_branch=main
+  export zipper_branch=a325f
 fi
 
 export out_image="${maindir}/out/arch/${ARCH}/boot/Image.gz"
-export out_dtb="${maindir}/out/arch/${ARCH}/boot/dts/mediatek/mt6765.dtb"
+export out_dtb="${maindir}/out/arch/${ARCH}/boot/dtb"
 export out_dtbo="${maindir}/out/arch/${ARCH}/boot/dtbo.img"
 
 export zipper="${outside}/zipper"
@@ -30,6 +30,13 @@ export zipper="${outside}/zipper"
 #
 
 export defconfig_file="${maindir}/arch/${ARCH}/configs/${defconfig}"
+
+if [ ! -f "${defconfig_file}" ]; then
+  if [ -f "${maindir}/arch/${ARCH}/configs/mt6768-unifiedk414_lineage_defconfig" ]; then
+    echo "New modular Kbuild detected! Adjusting vars for branch Infinity..."
+    cat "${maindir}/arch/${ARCH}/configs/mt6768-unifiedk414_lineage_defconfig" "${maindir}/arch/${ARCH}/configs/a32.config" > "${maindir}/arch/${ARCH}/configs/a32_lineage_defconfig"
+  fi
+fi
 
 export kernel_head="$(git log --pretty=format:'%h' -1)"
 export kernel_name=$(cat "${defconfig_file}" | grep "CONFIG_LOCALVERSION=" | sed 's/CONFIG_LOCALVERSION="-*//g' | sed 's/"*//g' )

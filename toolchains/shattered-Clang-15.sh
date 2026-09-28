@@ -17,13 +17,14 @@ case $1 in
 
   "build" )
     export PATH="${dir}/bin:/usr/bin:${PATH}"
+    sed -i 's/${RESOLVE_BTFIDS} vmlinux/echo "Skipping BTFIDS"/g' scripts/link-vmlinux.sh 2>/dev/null || :
     git submodule update --init --recursive
     make -j$NJOBS O=out CC=clang LD=ld.lld ARCH=arm64 SUBARCH=arm64 $2
     make -j$NJOBS O=out \
       CROSS_COMPILE="aarch64-linux-gnu-" \
       CROSS_COMPILE_ARM32="arm-linux-gnueabi-" \
       CROSS_COMPILE_COMPAT="arm-linux-gnueabi-" \
-      CC=clang \
+      CC="clang -w" \
       LD=ld.lld \
       NM=llvm-nm \
       AR=llvm-ar \
@@ -31,11 +32,12 @@ case $1 in
       OBJCOPY=llvm-objcopy \
       OBJDUMP=llvm-objdump \
       READELF=llvm-readelf \
-      LLVM_IAS=1 \
-      HOSTCC=clang \
-      HOSTCXX=clang++ \
+      LLVM_IAS=0 \
+      HOSTCC="clang -w" \
+      HOSTCXX="clang++ -w" \
       HOSTLD=ld.lld \
       HOSTAR=llvm-ar \
+      KCFLAGS="-Wno-deprecated-non-prototype -Wno-strict-prototypes -Wno-int-conversion -Wno-unused-variable -Wno-fortify-source -Wno-error" \
       2>&1 | tee ${CUR_TOOLCHAIN}.log
     sh ${outside}/ver_toolchain.sh clang ld.lld > ${CUR_TOOLCHAIN}.info
   ;;

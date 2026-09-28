@@ -1,6 +1,4 @@
 #!/bin/bash
-#
-# idk lmao
 
 export maindir="$(pwd)"
 export outside="${maindir}/.."
@@ -19,11 +17,14 @@ pack() {
     git fetch origin ${zipper_branch}
     git reset --hard origin/${zipper_branch}
   fi
-  cp -af "${out_image}" "${zipper}"
+  
+  cp -af "${out_image}" "${zipper}/Image.gz"
   cp -af "${out_dtb}" "${zipper}/dtb"
+  
+  mkdir -p "${zipper}/modules/system/lib/modules/"
   find "${maindir}/out" -name '*.ko' > module_list.txt
   xargs -d '\n' cp -v -t "${zipper}/modules/system/lib/modules/" < module_list.txt
-  [ -n "${out_dtbo}" ] && cp -af "${out_dtbo}" "${zipper}/dtbo.img"
+  
   if [ -e ${maindir}/banner_append ]; then
     cat ${maindir}/banner_append >> ${zipper}/banner
     if grep KernelSU ${maindir}/banner_append ; then
@@ -38,9 +39,7 @@ pack() {
   cd "${maindir}"
 }
 
-# build
 for toolchain in $1; do
-  #rm -rf out
 
   bash -x "${outside}/toolchains/${toolchain}.sh" setup
 
