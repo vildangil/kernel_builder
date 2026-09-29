@@ -1,117 +1,338 @@
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -488,7 +488,6 @@
+ 
+ # KernelSU
+ CONFIG_KSU=y
+-CONFIG_KSU_MANUAL_HOOK=y
+ CONFIG_NOMOUNT=y
+ 
+ # SuSFS
 diff --git a/fs/exec.c b/fs/exec.c
-index 1234567..abcdefg 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -50,6 +50,10 @@
- #include <linux/writeback.h>
- #include <linux/compat.h>
- 
-+#ifdef CONFIG_KSU
-+#include <linux/ksu.h>
+@@ -1696,6 +1696,15 @@
+ /*
+  * sys_execve() executes a new program.
+  */
++#ifdef CONFIG_KSU_SUSFS
++__attribute__((hot))
++extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
++				void *argv, void *envp, int *flags);
++__attribute__((hot))
++extern int ksu_handle_post_execveat(int *fd, struct filename **filename_ptr,
++				void *argv, void *envp, int *flags, int *retval);
 +#endif
 +
- #include <asm/uaccess.h>
- #include <asm/mmu_context.h>
- #include <asm/tlb.h>
-@@ -1800,6 +1804,13 @@ static int __do_execve_file(int fd, struct filename *pathname,
- 	struct files_struct *displaced;
- 	int retval;
+ static int do_execveat_common(int fd, struct filename *filename,
+ 			      struct user_arg_ptr argv,
+ 			      struct user_arg_ptr envp,
+@@ -1710,6 +1719,10 @@
+ 	if (IS_ERR(filename))
+ 		return PTR_ERR(filename);
  
-+#ifdef CONFIG_KSU
-+	if (ksu_execveat_hook(__fd, __filename, __argv, __envp, 0)) {
-+		putname(filename);
-+		return 0;
-+	}
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 +#endif
 +
- 	retval = unshare_files(&displaced);
- 	if (retval)
- 		goto out_ret;
-diff --git a/fs/proc/root.c b/fs/proc/root.c
-index 2345678..bcdefgh 100644
---- a/fs/proc/root.c
-+++ b/fs/proc/root.c
-@@ -20,6 +20,10 @@
- #include <linux/magic.h>
- #include <linux/fs_context.h>
- 
-+#ifdef CONFIG_KSU
-+#include <linux/ksu.h>
+ 	/*
+ 	 * We move the actual failure in case of RLIMIT_NPROC excess from
+ 	 * set*uid() to execve() because too many poorly written programs
+@@ -1814,6 +1827,9 @@
+ 	task_numa_free(current, false);
+ 	free_bprm(bprm);
+ 	kfree(pathbuf);
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_post_execveat(&fd, &filename, &argv, &envp, &flags, &retval);
 +#endif
-+
- #include "internal.h"
- 
- static int proc_test_super(struct super_block *sb, void *data)
-@@ -80,6 +84,11 @@ static int proc_fill_super(struct super_block *s, void *data, int silent)
- 	s->s_time_gran = 1;
- 	s->s_root = root;
- 
-+#ifdef CONFIG_KSU
-+	if (ksu_devpts_hook())
-+		return -1;
+ 	putname(filename);
+ 	if (displaced)
+ 		put_files_struct(displaced);
+@@ -1837,6 +1853,9 @@
+ 	if (displaced)
+ 		reset_files_struct(displaced);
+ out_ret:
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_post_execveat(&fd, &filename, &argv, &envp, &flags, &retval);
 +#endif
-+
- 	return 0;
- 
- out:
-diff --git a/kernel/sys.c b/kernel/sys.c
-index 3456789..cdefghi 100644
---- a/kernel/sys.c
-+++ b/kernel/sys.c
-@@ -50,6 +50,10 @@
- #include <linux/sched/rt.h>
- #include <linux/sched/task.h>
- 
-+#ifdef CONFIG_KSU
-+#include <linux/ksu.h>
-+#endif
-+
- #include <asm/io.h>
- #include <asm/unistd.h>
- 
-@@ -2500,3 +2504,15 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
- 	up_read(&me->mm->mmap_sem);
+ 	putname(filename);
+ 	return retval;
+ }
+diff --git a/fs/open.c b/fs/open.c
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -351,5 +351,12 @@
  	return error;
  }
 +
-+#ifdef CONFIG_KSU
-+asmlinkage int ksu_handle_sys_readlinkat(int dfd, const char __user *filename,
-+					 char __user *buf, int bufsiz)
-+{
-+	return ksu_devpts_hook();
-+}
-+
-+SYSCALL_DEFINE4(ksu_syscall, unsigned long, arg1, unsigned long, arg2,
-+		unsigned long, arg3, unsigned long, arg4)
-+{
-+	return ksu_handle_syscall(arg1, arg2, arg3, arg4);
-+}
++#ifdef CONFIG_KSU_SUSFS
++__attribute__((hot))
++extern int ksu_handle_faccessat_user(int *dfd,
++				const char __user **filename_user,
++				int *mode, int *flags);
 +#endif
-diff --git a/include/linux/ksu.h b/include/linux/ksu.h
-new file mode 100644
-index 0000000..1234567
---- /dev/null
-+++ b/include/linux/ksu.h
-@@ -0,0 +1,20 @@
-+#ifndef _LINUX_KSU_H
-+#define _LINUX_KSU_H
-+
-+#ifdef CONFIG_KSU
-+int ksu_execveat_hook(int fd, const char __user *filename,
-+		      const char __user *const __user *argv,
-+		      const char __user *const __user *envp, int flags);
-+int ksu_devpts_hook(void);
-+int ksu_handle_syscall(unsigned long arg1, unsigned long arg2,
-+		       unsigned long arg3, unsigned long arg4);
-+#else
-+static inline int ksu_execveat_hook(int fd, const char __user *filename,
-+				    const char __user *const __user *argv,
-+				    const char __user *const __user *envp, int flags)
-+{ return 0; }
-+static inline int ksu_devpts_hook(void) { return 0; }
-+static inline int ksu_handle_syscall(unsigned long arg1, unsigned long arg2,
-+				     unsigned long arg3, unsigned long arg4)
-+{ return 0; }
+ 
+ /*
+  * access() needs to use the real uid/gid, not the effective uid/gid.
+@@ -369,6 +376,10 @@
+ 	int res;
+ 	unsigned int lookup_flags = LOOKUP_FOLLOW;
+ 
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_faccessat_user(&dfd, &filename, &mode, NULL);
 +#endif
 +
-+#endif /* _LINUX_KSU_H */
+ 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
+ 		return -EINVAL;
+ 
+diff --git a/fs/read_write.c b/fs/read_write.c
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -568,6 +568,12 @@
+ 		file->f_pos = pos;
+ }
+ 
++#ifdef CONFIG_KSU_SUSFS
++extern __attribute__((cold)) int ksu_handle_sys_read(
++				unsigned int fd, char __user **buf_ptr,
++				size_t *count_ptr);
++#endif
++
+ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ {
+ 	struct fd f = fdget_pos(fd);
+@@ -573,5 +579,9 @@
+ 	struct fd f = fdget_pos(fd);
+ 	ssize_t ret = -EBADF;
++
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_sys_read(fd, &buf, &count);
++#endif
+ 
+ 	if (f.file) {
+ 		loff_t pos = file_pos_read(f.file);
+diff --git a/fs/stat.c b/fs/stat.c
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -349,6 +349,19 @@
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#ifdef CONFIG_KSU_SUSFS
++__attribute__((hot))
++extern int ksu_handle_stat_user(int *dfd,
++				const char __user **filename_user,
++				int *flags);
++extern void ksu_handle_newfstat_ret(unsigned int *fd,
++				struct stat __user **statbuf_ptr);
++#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
++extern void ksu_handle_fstat64_ret(unsigned long *fd,
++				struct stat64 __user **statbuf_ptr);
++#endif
++#endif
++
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -358,6 +371,9 @@
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_stat_user(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -376,6 +392,9 @@
+ 	if (!error)
+ 		error = cp_new_stat(&stat, statbuf);
+ 
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_newfstat_ret(&fd, &statbuf);
++#endif
+ 	return error;
+ }
+ 
+@@ -496,6 +515,9 @@
+ 	if (!error)
+ 		error = cp_new_stat64(&stat, statbuf);
+ 
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_fstat64_ret(&fd, &statbuf);
++#endif
+ 	return error;
+ }
+ 
+@@ -505,6 +527,9 @@
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_stat_user(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -269,6 +269,11 @@
+ 
+ static DEFINE_MUTEX(reboot_mutex);
+ 
++#ifdef CONFIG_KSU_SUSFS
++extern int ksu_handle_sys_reboot(int magic1, int magic2,
++				unsigned int cmd, void __user **arg);
++#endif
++
+ /*
+  * Reboot system call: for obvious reasons only root may call it,
+  * and even root needs to set up some magic numbers in the registers
+@@ -284,6 +289,10 @@
+ 	char buffer[256];
+ 	int ret = 0;
+ 
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
++#endif
++
+ 	/* We only trust the superuser with rebooting the system. */
+ 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
+ 		return -EPERM;
+diff --git a/kernel/sys.c b/kernel/sys.c
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -598,6 +598,10 @@
+  * This function implements a generic ability to update ruid, euid,
+  * and suid.  This allows you to implement the 4.4 compatible seteuid().
+  */
++#ifdef CONFIG_KSU_SUSFS
++extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
++#endif
++
+ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
+ {
+ 	struct user_namespace *ns = current_user_ns();
+@@ -606,6 +610,10 @@
+ 	int retval;
+ 	kuid_t kruid, keuid, ksuid;
+ 
++#ifdef CONFIG_KSU_SUSFS
++	(void)ksu_handle_setresuid(ruid, euid, suid);
++#endif
++
+ 	kruid = make_kuid(ns, ruid);
+ 	keuid = make_kuid(ns, euid);
+ 	ksuid = make_kuid(ns, suid);
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -425,6 +425,11 @@
+  * to 'seed' initial state of a switch or initial position of absolute
+  * axis, etc.
+  */
++#ifdef CONFIG_KSU_SUSFS
++extern __attribute__((cold)) int ksu_handle_input_handle_event(
++				unsigned int *type, unsigned int *code, int *value);
++#endif
++
+ void input_event(struct input_dev *dev,
+ 		 unsigned int type, unsigned int code, int value)
+ {
+@@ -430,5 +435,9 @@
+ {
+ 	unsigned long flags;
++
++#ifdef CONFIG_KSU_SUSFS
++	ksu_handle_input_handle_event(&type, &code, &value);
++#endif
+ 
+ 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
+ 
+diff --git a/KernelSU/kernel/feature/sucompat.c b/KernelSU/kernel/feature/sucompat.c
+--- a/KernelSU/kernel/feature/sucompat.c
++++ b/KernelSU/kernel/feature/sucompat.c
+@@ -681,6 +681,81 @@
+     return 0;
+ }
+ #endif // #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
++
++#ifdef CONFIG_KSU_SUSFS
++/*
++ * Android 4.14 syscall layer uses userspace filename pointers in faccessat
++ * and stat-family syscalls, while current ReSukiSU SUSFS handlers accept
++ * struct filename **. Keep the upstream handlers intact and bridge 4.14 here.
++ */
++int ksu_handle_faccessat_user(int *dfd, const char __user **filename_user,
++			      int *mode, int *__unused_flags)
++{
++	char path[sizeof(su_path) + 1] = { 0 };
++	const struct cred *old_cred;
++
++	if (ksu_is_current_proc_unprivillege())
++		return 0;
++
++	if (!static_branch_unlikely(&ksu_su_compat_enabled))
++		return 0;
++
++	if (!filename_user || !*filename_user)
++		return 0;
++
++	if (!ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid())))
++		return 0;
++
++	ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
++
++	if (unlikely(!memcmp(path, su_path, sizeof(su_path)))) {
++		old_cred = override_creds(ksu_cred);
++		if (is_ksud_exists()) {
++			pr_info("ksu_handle_faccessat_user su->sh!\n");
++			*filename_user = sh_user_path();
++		} else {
++			pr_info("no ksud found, don't process faccessat for su!\n");
++		}
++		revert_creds(old_cred);
++	}
++
++	return 0;
++}
++
++int ksu_handle_stat_user(int *dfd, const char __user **filename_user,
++			 int *flags)
++{
++	char path[sizeof(su_path) + 1] = { 0 };
++	const struct cred *old_cred;
++
++	if (ksu_is_current_proc_unprivillege())
++		return 0;
++
++	if (!static_branch_unlikely(&ksu_su_compat_enabled))
++		return 0;
++
++	if (!filename_user || !*filename_user)
++		return 0;
++
++	if (!ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid())))
++		return 0;
++
++	ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
++
++	if (unlikely(!memcmp(path, su_path, sizeof(su_path)))) {
++		old_cred = override_creds(ksu_cred);
++		if (is_ksud_exists()) {
++			pr_info("ksu_handle_stat_user su->sh!\n");
++			*filename_user = sh_user_path();
++		} else {
++			pr_info("no ksud found, don't process stat for su!\n");
++		}
++		revert_creds(old_cred);
++	}
++
++	return 0;
++}
++#endif
+ 
+ // dead code: devpts handling
+ int __maybe_unused ksu_handle_devpts(struct inode *inode)
