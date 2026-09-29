@@ -38,7 +38,7 @@ on:
       TG_RECIPENT:
         description: 'group id'
         required: true
-        default: '-1003050733874'
+        default: '3535423659'
       CONTAINER:
         description: 'if you know you know'
         required: true
