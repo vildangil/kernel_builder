@@ -1,0 +1,117 @@
+diff --git a/fs/exec.c b/fs/exec.c
+index 1234567..abcdefg 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -50,6 +50,10 @@
+ #include <linux/writeback.h>
+ #include <linux/compat.h>
+ 
++#ifdef CONFIG_KSU
++#include <linux/ksu.h>
++#endif
++
+ #include <asm/uaccess.h>
+ #include <asm/mmu_context.h>
+ #include <asm/tlb.h>
+@@ -1800,6 +1804,13 @@ static int __do_execve_file(int fd, struct filename *pathname,
+ 	struct files_struct *displaced;
+ 	int retval;
+ 
++#ifdef CONFIG_KSU
++	if (ksu_execveat_hook(__fd, __filename, __argv, __envp, 0)) {
++		putname(filename);
++		return 0;
++	}
++#endif
++
+ 	retval = unshare_files(&displaced);
+ 	if (retval)
+ 		goto out_ret;
+diff --git a/fs/proc/root.c b/fs/proc/root.c
+index 2345678..bcdefgh 100644
+--- a/fs/proc/root.c
++++ b/fs/proc/root.c
+@@ -20,6 +20,10 @@
+ #include <linux/magic.h>
+ #include <linux/fs_context.h>
+ 
++#ifdef CONFIG_KSU
++#include <linux/ksu.h>
++#endif
++
+ #include "internal.h"
+ 
+ static int proc_test_super(struct super_block *sb, void *data)
+@@ -80,6 +84,11 @@ static int proc_fill_super(struct super_block *s, void *data, int silent)
+ 	s->s_time_gran = 1;
+ 	s->s_root = root;
+ 
++#ifdef CONFIG_KSU
++	if (ksu_devpts_hook())
++		return -1;
++#endif
++
+ 	return 0;
+ 
+ out:
+diff --git a/kernel/sys.c b/kernel/sys.c
+index 3456789..cdefghi 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -50,6 +50,10 @@
+ #include <linux/sched/rt.h>
+ #include <linux/sched/task.h>
+ 
++#ifdef CONFIG_KSU
++#include <linux/ksu.h>
++#endif
++
+ #include <asm/io.h>
+ #include <asm/unistd.h>
+ 
+@@ -2500,3 +2504,15 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
+ 	up_read(&me->mm->mmap_sem);
+ 	return error;
+ }
++
++#ifdef CONFIG_KSU
++asmlinkage int ksu_handle_sys_readlinkat(int dfd, const char __user *filename,
++					 char __user *buf, int bufsiz)
++{
++	return ksu_devpts_hook();
++}
++
++SYSCALL_DEFINE4(ksu_syscall, unsigned long, arg1, unsigned long, arg2,
++		unsigned long, arg3, unsigned long, arg4)
++{
++	return ksu_handle_syscall(arg1, arg2, arg3, arg4);
++}
++#endif
+diff --git a/include/linux/ksu.h b/include/linux/ksu.h
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/include/linux/ksu.h
+@@ -0,0 +1,20 @@
++#ifndef _LINUX_KSU_H
++#define _LINUX_KSU_H
++
++#ifdef CONFIG_KSU
++int ksu_execveat_hook(int fd, const char __user *filename,
++		      const char __user *const __user *argv,
++		      const char __user *const __user *envp, int flags);
++int ksu_devpts_hook(void);
++int ksu_handle_syscall(unsigned long arg1, unsigned long arg2,
++		       unsigned long arg3, unsigned long arg4);
++#else
++static inline int ksu_execveat_hook(int fd, const char __user *filename,
++				    const char __user *const __user *argv,
++				    const char __user *const __user *envp, int flags)
++{ return 0; }
++static inline int ksu_devpts_hook(void) { return 0; }
++static inline int ksu_handle_syscall(unsigned long arg1, unsigned long arg2,
++				     unsigned long arg3, unsigned long arg4)
++{ return 0; }
++#endif
++
++#endif /* _LINUX_KSU_H */
