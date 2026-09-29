@@ -1,9 +1,6 @@
 name: Build shadow branch
 
 on:
-  push:
-    branches:
-      - Rosemary
   workflow_dispatch:
     inputs:
       COMPILER:
