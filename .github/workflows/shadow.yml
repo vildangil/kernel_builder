@@ -37,7 +37,7 @@ on:
         default: 'susfs'
       TG_RECIPENT:
         description: 'group id'
-        required: true
+        required: false
         default: '3535423659'
       CONTAINER:
         description: 'if you know you know'
