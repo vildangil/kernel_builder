@@ -6,9 +6,9 @@ export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s legacy
+curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 git add . && git commit -am "drivers: KernelSU"
-KSU_git_ver=$(cd ReSukiSU && git rev-list --count HEAD)
+KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
 KSU_ver=$KSU_git_ver
 
 patchesdir="$outside/ksu/hooks/"
