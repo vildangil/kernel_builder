@@ -15,7 +15,8 @@ patchesdir="$outside/ksu/hooks/"
 
 if [[ -d "$patchesdir" ]]; then
   for patch_file in "$patchesdir"/*.patch ; do
-    patch -p1 < "$patch_file"
+    git apply --check "$patch_file" || exit 1
+    git apply "$patch_file" || exit 1
   done
 else
   echo "patching ksu failed, the kernel version you want to patch doesnt have patches here yet"
