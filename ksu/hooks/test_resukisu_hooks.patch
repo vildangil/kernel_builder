@@ -1,7 +1,7 @@
 diff --git a/fs/exec.c b/fs/exec.c
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1695,6 +1695,15 @@ static int exec_binprm(struct linux_binprm *bprm)
+@@ -1696,6 +1696,15 @@
  /*
   * sys_execve() executes a new program.
   */
@@ -17,18 +17,18 @@ diff --git a/fs/exec.c b/fs/exec.c
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1711,6 +1720,10 @@ static int do_execveat_common(int fd, struct filename *filename,
- 	if (IS_ERR(filename))
- 		return PTR_ERR(filename);
+@@ -1707,6 +1716,10 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	struct files_struct *displaced;
+ 	int retval;
  
 +#ifdef CONFIG_KSU_MANUAL_HOOK
 +	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 +#endif
 +
- 	/*
- 	 * We move the actual failure in case of RLIMIT_NPROC excess from
- 	 * set*uid() to execve() because too many poorly written programs
-@@ -1810,6 +1823,9 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (IS_ERR(filename))
+ 		return PTR_ERR(filename);
+ 
+@@ -1814,6 +1827,9 @@ static int do_execveat_common(int fd, struct filename *filename,
  	task_numa_free(current, false);
  	free_bprm(bprm);
  	kfree(pathbuf);
@@ -38,7 +38,7 @@ diff --git a/fs/exec.c b/fs/exec.c
  	putname(filename);
  	if (displaced)
  		put_files_struct(displaced);
-@@ -1835,6 +1851,9 @@ out_files:
+@@ -1837,6 +1853,9 @@ out_files:
  	if (displaced)
  		reset_files_struct(displaced);
  out_ret:
@@ -48,6 +48,7 @@ diff --git a/fs/exec.c b/fs/exec.c
  	putname(filename);
  	return retval;
  }
+
 diff --git a/fs/open.c b/fs/open.c
 --- a/fs/open.c
 +++ b/fs/open.c
@@ -75,6 +76,7 @@ diff --git a/fs/open.c b/fs/open.c
  	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
  		return -EINVAL;
  
+
 diff --git a/fs/stat.c b/fs/stat.c
 --- a/fs/stat.c
 +++ b/fs/stat.c
@@ -96,18 +98,18 @@ diff --git a/fs/stat.c b/fs/stat.c
  /**
   * generic_fillattr - Fill in the basic attributes from the inode struct
   * @inode: Inode to use as the source
-@@ -166,6 +177,10 @@ int vfs_statx(int dfd, const char __user *filename, int flags,
- 	int error = -EINVAL;
- 	unsigned int lookup_flags = LOOKUP_FOLLOW | LOOKUP_AUTOMOUNT;
+@@ -360,6 +371,10 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
  
 +#ifdef CONFIG_KSU_MANUAL_HOOK
-+	ksu_handle_stat(&dfd, &filename, &flags);
++	ksu_handle_stat(&dfd, &filename, &flag);
 +#endif
 +
- 	if ((flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |
- 		       AT_EMPTY_PATH | KSTAT_QUERY_FLAGS)) != 0)
- 		return -EINVAL;
-@@ -379,6 +394,11 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -375,6 +390,11 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
  	if (!error)
  		error = cp_new_stat(&stat, statbuf);
  
@@ -119,7 +121,11 @@ diff --git a/fs/stat.c b/fs/stat.c
  	return error;
  }
  
-@@ -486,6 +506,11 @@ SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
+@@ -491,10 +511,15 @@ SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
+ {
+ 	struct kstat stat;
+ 	int error = vfs_fstat(fd, &stat);
+ 
  	if (!error)
  		error = cp_new_stat64(&stat, statbuf);
  
@@ -131,6 +137,18 @@ diff --git a/fs/stat.c b/fs/stat.c
  	return error;
  }
  
+@@ -504,6 +529,10 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
++
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+
 diff --git a/kernel/reboot.c b/kernel/reboot.c
 --- a/kernel/reboot.c
 +++ b/kernel/reboot.c
