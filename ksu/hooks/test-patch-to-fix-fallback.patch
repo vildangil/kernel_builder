@@ -1,0 +1,19 @@
+diff --git a/drivers/input/fingerprint/goodix/gf_spi_tee.c b/drivers/input/fingerprint/goodix/gf_spi_tee.c
+--- a/drivers/input/fingerprint/goodix/gf_spi_tee.c
++++ b/drivers/input/fingerprint/goodix/gf_spi_tee.c
+@@ -2,5 +2,15 @@
+ extern bool fpc1022_fp_exist;
+ extern struct spi_device *spi_fingerprint;
+ static struct gf_device goodix_dev;
++
++/*
++ * uuid_fp normally lives in MicroTrust's teei_fp.c. Rosemary's fingerprint
++ * drivers still use it even when CONFIG_MICROTRUST_TEE_SUPPORT is disabled,
++ * which otherwise leaves an unresolved symbol at vmlinux link time.
++ */
++#ifndef CONFIG_MICROTRUST_TEE_SUPPORT
++struct TEEC_UUID uuid_fp = { 0x7778c03f, 0xc30c, 0x4dd0,
++	{ 0xa3, 0x19, 0xea, 0x29, 0x64, 0x3d, 0x4d, 0x4b } };
++#endif
+ struct TEEC_UUID uuid_ta_gf = { 0x8888c03f, 0xc30c, 0x4dd0,
+ 	{ 0xa3, 0x19, 0xea, 0x29, 0x64, 0x3d, 0x4d, 0x4b } };
