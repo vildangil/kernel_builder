@@ -58,6 +58,10 @@ for toolchain in $1; do
     exit 1
   fi
 
+  if [[ "${DROIDSPACES:-false}" == "true" ]]; then
+    bash "${outside}/configs/validate-droidspaces.sh" "${maindir}/out/.config"
+  fi
+
   if [ -s "${out_image}" ]; then
     BUILD_END=$(date +"%s")
     DIFF=$((BUILD_END - BUILD_START))
