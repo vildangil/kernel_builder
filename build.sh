@@ -1,8 +1,9 @@
 #!/bin/bash
+set -eo pipefail
 
 export maindir="$(pwd)"
 export outside="${maindir}/.."
-source "${outside}/$2env"
+source "${outside}/${2:-}env"
 
 [ -z "$NJOBS" ] && export NJOBS=$(nproc --all) || :
 
@@ -23,7 +24,7 @@ pack() {
   
   mkdir -p "${zipper}/modules/system/lib/modules/"
   find "${maindir}/out" -name '*.ko' > module_list.txt
-  xargs -d '\n' cp -v -t "${zipper}/modules/system/lib/modules/" < module_list.txt
+  xargs -r -d '\n' cp -v -t "${zipper}/modules/system/lib/modules/" < module_list.txt
   
   if [ -e ${maindir}/banner_append ]; then
     cat ${maindir}/banner_append >> ${zipper}/banner
@@ -32,7 +33,7 @@ pack() {
     fi
   fi
   zip -r9 "$1" ./* -x .git README.md ./*placeholder
-  if apksigner version && [ -f "$SIGN_PK8" ] && [ -f "$SIGN_PEM" ] ; then
+  if command -v apksigner >/dev/null 2>&1 && [ -n "${SIGN_PK8:-}" ] && [ -n "${SIGN_PEM:-}" ] && [ -f "$SIGN_PK8" ] && [ -f "$SIGN_PEM" ] ; then
     apksigner sign --min-sdk-version 30 --key "$SIGN_PK8" --cert "$SIGN_PEM" "$1" && SIGNED=1
   fi
   rm  -f ${maindir}/banner_append "${out_image}"
@@ -41,14 +42,23 @@ pack() {
 
 for toolchain in $1; do
 
+  [[ -f "${outside}/toolchains/${toolchain}.sh" ]] || { echo "Unknown toolchain: ${toolchain}" >&2; exit 2; }
   bash -x "${outside}/toolchains/${toolchain}.sh" setup
 
   BUILD_START=$(date +"%s")
   export CUR_TOOLCHAIN="${toolchain}"
 
-  bash -x "${outside}/toolchains/${toolchain}.sh" build ${defconfig} || exit 1
+  # Some toolchain scripts pipe make into tee and lose make\x27s exit status.
+  # Do not mistake an image left from an older build for a fresh success.
+  rm -f "${out_image}" "${toolchain}.log"
+  bash -x "${outside}/toolchains/${toolchain}.sh" build "${defconfig}" || exit 1
 
-  if [ -e "${out_image}" ]; then
+  if [ ! -s "${out_image}" ] || [ ! -s "${out_dtb}" ]; then
+    echo "Build failed: missing/empty Image.gz or dtb for ${toolchain}" >&2
+    exit 1
+  fi
+
+  if [ -s "${out_image}" ]; then
     BUILD_END=$(date +"%s")
     DIFF=$((BUILD_END - BUILD_START))
     pack ${zip_name}
