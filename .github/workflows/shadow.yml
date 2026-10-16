@@ -43,6 +43,11 @@ on:
         description: 'if you know you know'
         required: true
         default: 'fedora:40'
+      DROIDSPACES:
+        description: 'enable DroidSpaces namespace/cgroup support (non-GKI)'
+        type: boolean
+        required: true
+        default: true
 
 env:
   BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -53,6 +58,7 @@ env:
   NOTE: ${{ inputs.NOTES }}
   COMPILERS: ${{ inputs.COMPILER }}
   PATCH_KSU: ${{ inputs.KSU }}
+  DROIDSPACES: ${{ inputs.DROIDSPACES }}
   SUFFIX: ${{ inputs.SUFFIX }}
   zipper_repo: ${{ inputs.ZREPO }}
   zipper_branch: ${{ inputs.ZBRANCH }}
@@ -100,6 +106,13 @@ jobs:
               bash tg_utils.sh msg "gh $RUN_NUM: cloning kernel source%nlgh $RUN_NUM: repo: $REPO%nlgh $RUN_NUM: branch: $KERNEL_BRANCH"
             fi
             git clone --depth=1 --single-branch $REPO -b $KERNEL_BRANCH kernel
+        - name: enable DroidSpaces kernel features
+          if: ${{ inputs.DROIDSPACES }}
+          shell: bash
+          run: |
+            set -euo pipefail
+            cd kernel
+            bash ../configs/enable-droidspaces.sh
         - name: print kernel info
           run: |
             cd kernel
