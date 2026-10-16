@@ -51,6 +51,11 @@ on:
         type: boolean
         required: true
         default: true
+      MTK_CONNECTIVITY:
+        description: 'restore in-tree MT6785 WMT/WLAN drivers from rosemary-s'
+        type: boolean
+        required: true
+        default: true
       DROIDSPACES:
         description: 'enable DroidSpaces namespace/cgroup support (non-GKI)'
         type: boolean
@@ -67,6 +72,7 @@ env:
   COMPILERS: ${{ inputs.COMPILER || 'AOSP-Clang-11' }}
   PATCH_KSU: ${{ github.event_name == 'push' && 'susfs' || inputs.KSU }}
   DROIDSPACES: ${{ github.event_name == 'push' && 'true' || inputs.DROIDSPACES }}
+  MTK_CONNECTIVITY: ${{ github.event_name == 'push' && 'true' || inputs.MTK_CONNECTIVITY }}
   BORE: ${{ github.event_name == 'push' && 'true' || inputs.BORE }}
   SUFFIX: ${{ inputs.SUFFIX }}
   zipper_repo: ${{ inputs.ZREPO || 'https://github.com/vildangil/BlackSide_Kernel_AnyKernel3' }}
@@ -115,6 +121,13 @@ jobs:
               bash tg_utils.sh msg "gh $RUN_NUM: cloning kernel source%nlgh $RUN_NUM: repo: $REPO%nlgh $RUN_NUM: branch: $KERNEL_BRANCH"
             fi
             git clone --depth=1 --single-branch $REPO -b $KERNEL_BRANCH kernel
+        - name: restore MT6785 WMT/WLAN connectivity drivers
+          if: ${{ inputs.MTK_CONNECTIVITY || github.event_name == 'push' }}
+          shell: bash
+          run: |
+            set -euo pipefail
+            cd kernel
+            bash ../configs/restore-rosemary-connectivity.sh
         - name: enable DroidSpaces kernel features
           if: ${{ inputs.DROIDSPACES || github.event_name == 'push' }}
           shell: bash
