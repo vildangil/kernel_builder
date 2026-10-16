@@ -22,7 +22,8 @@ if [[ -z "$zipper_branch" ]]; then
 fi
 
 export out_image="${maindir}/out/arch/${ARCH}/boot/Image.gz"
-export out_dtb="${maindir}/out/arch/${ARCH}/boot/dtb"
+# Rosemary MT6785 builds the DTB under boot/dts/mediatek; there is no boot/dtb target.
+export out_dtb="${maindir}/out/arch/${ARCH}/boot/dts/mediatek/mt6785.dtb"
 export out_dtbo="${maindir}/out/arch/${ARCH}/boot/dtbo.img"
 
 export zipper="${outside}/zipper"
