@@ -63,9 +63,12 @@ def main():
         if symbol is None:
             raise RuntimeError(f"hunk {num}: no syscall anchor")
         symbol = symbol.group()
-        if source.count(symbol) != 1:
-            raise RuntimeError(f"hunk {num}: syscall {symbol} missing or ambiguous")
-        start = source.index(symbol)
+        # COMPAT_SYSCALL_DEFINE* contains "SYSCALL_DEFINE*" as a
+        # substring, so only match the native declaration at BOL.
+        matches = list(re.finditer(r"^" + re.escape(symbol), source, re.MULTILINE))
+        if len(matches) != 1:
+            raise RuntimeError(f"hunk {num}: syscall {symbol} missing or ambiguous: {len(matches)} matches")
+        start = matches[0].start()
         stop = source.find("\nSYSCALL_DEFINE", start + len(symbol))
         if stop < 0:
             stop = len(source)
