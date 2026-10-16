@@ -43,6 +43,11 @@ on:
         description: 'if you know you know'
         required: true
         default: 'fedora:40'
+      BORE:
+        description: 'enable BORE 4.2.4 scheduler on Linux 4.14 (experimental)'
+        type: boolean
+        required: true
+        default: true
       DROIDSPACES:
         description: 'enable DroidSpaces namespace/cgroup support (non-GKI)'
         type: boolean
@@ -59,6 +64,7 @@ env:
   COMPILERS: ${{ inputs.COMPILER }}
   PATCH_KSU: ${{ inputs.KSU }}
   DROIDSPACES: ${{ inputs.DROIDSPACES }}
+  BORE: ${{ inputs.BORE }}
   SUFFIX: ${{ inputs.SUFFIX }}
   zipper_repo: ${{ inputs.ZREPO }}
   zipper_branch: ${{ inputs.ZBRANCH }}
@@ -113,6 +119,13 @@ jobs:
             set -euo pipefail
             cd kernel
             bash ../configs/enable-droidspaces.sh
+        - name: port BORE 4.2.4 to MTK scheduler
+          if: ${{ inputs.BORE }}
+          shell: bash
+          run: |
+            set -euo pipefail
+            cd kernel
+            python3 ../ksu/bore/port_shadow_bore.py ../ksu/bore/bore-4.14-4.2.4-reference.patch
         - name: print kernel info
           run: |
             cd kernel
