@@ -7,8 +7,10 @@ trap 'rm -f "$setup_script"' EXIT
 curl --fail --location --silent --show-error --retry 3 \
   https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh \
   --output "$setup_script"
-# Pin a tag or commit by setting KSU_REF. Main is the current BakaSU branch.
-sh "$setup_script" "${KSU_REF:-main}"
+# Upstream BakaSU/main currently blocks SUSFS builds unconditionally in
+# kernel/tools/susfs_compat.mk. Use the project's own sync-susfs branch
+# for this experimental non-GKI SUSFS 2.3.0 port. Override via KSU_REF.
+sh "$setup_script" "${KSU_REF:-sync-susfs}"
 [[ -f KernelSU/kernel/Kconfig && -e drivers/kernelsu/Kconfig ]] || {
   echo "BakaSU integration is incomplete: missing KernelSU/kernel/Kconfig" >&2
   exit 1
