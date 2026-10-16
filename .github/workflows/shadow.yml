@@ -66,8 +66,8 @@ env:
   NOTE: ${{ inputs.NOTES }}
   COMPILERS: ${{ inputs.COMPILER || 'AOSP-Clang-11' }}
   PATCH_KSU: ${{ github.event_name == 'push' && 'susfs' || inputs.KSU }}
-  DROIDSPACES: ${{ inputs.DROIDSPACES }}
-  BORE: ${{ inputs.BORE }}
+  DROIDSPACES: ${{ github.event_name == 'push' && 'true' || inputs.DROIDSPACES }}
+  BORE: ${{ github.event_name == 'push' && 'true' || inputs.BORE }}
   SUFFIX: ${{ inputs.SUFFIX }}
   zipper_repo: ${{ inputs.ZREPO || 'https://github.com/vildangil/BlackSide_Kernel_AnyKernel3' }}
   zipper_branch: ${{ inputs.ZBRANCH || 'rosemary' }}
