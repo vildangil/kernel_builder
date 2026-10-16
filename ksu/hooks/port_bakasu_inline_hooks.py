@@ -43,7 +43,9 @@ def main():
     patch_file("fs/read_write.c", [
         ("SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)\n",
          read_proto + "SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)\n"),
-        ("\tstruct fd f = fdget_pos(fd);\n\tssize_t ret = -EBADF;\n\n",
+        ("SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)\n{\n"
+         "\tstruct fd f = fdget_pos(fd);\n\tssize_t ret = -EBADF;\n\n",
+         "SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)\n{\n"
          "\tstruct fd f = fdget_pos(fd);\n\tssize_t ret = -EBADF;\n\n" + guard +
          "\tksu_handle_sys_read(fd, &buf, &count);\n" + footer + "\n"),
     ])
@@ -51,7 +53,11 @@ def main():
     patch_file("drivers/input/input.c", [
         ("void input_event(struct input_dev *dev,\n",
          input_proto + "void input_event(struct input_dev *dev,\n"),
-        ("\tunsigned long flags;\n\n\tif (is_event_supported(type, dev->evbit, EV_MAX)) {\n",
+        ("void input_event(struct input_dev *dev,\n"
+         "\t\t unsigned int type, unsigned int code, int value)\n{\n"
+         "\tunsigned long flags;\n\n\tif (is_event_supported(type, dev->evbit, EV_MAX)) {\n",
+         "void input_event(struct input_dev *dev,\n"
+         "\t\t unsigned int type, unsigned int code, int value)\n{\n"
          "\tunsigned long flags;\n\n" + guard +
          "\tksu_handle_input_handle_event(&type, &code, &value);\n" + footer +
          "\n\tif (is_event_supported(type, dev->evbit, EV_MAX)) {\n"),
@@ -61,7 +67,7 @@ def main():
     # BakaSU's inline SUSFS mode, unlike stat/faccessat (see below).
     old_guard = "#ifdef CONFIG_KSU_MANUAL_HOOK"
     new_guard = "#if defined(CONFIG_KSU_MANUAL_HOOK) || defined(CONFIG_KSU_SUSFS)"
-    for name, expected in [("fs/exec.c", 3), ("kernel/reboot.c", 2)]:
+    for name, expected in [("fs/exec.c", 4), ("kernel/reboot.c", 2)]:
         path = Path(name)
         source = path.read_text()
         seen = source.count(old_guard)
