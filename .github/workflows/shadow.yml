@@ -66,7 +66,7 @@ jobs:
 
     steps:
         - name: checkout
-          uses: actions/checkout@master
+          uses: actions/checkout@v4
         - name: why
           run: |
             echo WORKFLOW_START=$(date +"%s") >> $GITHUB_ENV
@@ -106,7 +106,9 @@ jobs:
             source ../env
             bash ../tg_utils.sh msg "gh $RUN_NUM: kernel name: ${kernel_name}%nlgh $RUN_NUM: kernel ver: ${kernel_ver}%nlgh $RUN_NUM: kernel head commit: ${kernel_head}%nlgh $RUN_NUM: defconfig: ${defconfig}"
         - name: run compilation scripts
+          shell: bash
           run: |
+            set -euo pipefail
             cd kernel
             case $PATCH_KSU in
               "both" )
@@ -118,38 +120,52 @@ jobs:
                 bash ../build.sh "$COMPILERS"
               ;;
               "ksu" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: ReSukiSU patching enabled, patching"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: BakaSU patching enabled, patching"
                 bash ../ksu/ksu.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
               "susfs" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: ReSukiSU and susfs patching enabled, patching"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: BakaSU and susfs patching enabled, patching"
                 bash ../ksu/susfs.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
-                bash ../build.sh "$COMPILERS" || true
+                bash ../build.sh "$COMPILERS"
               ;;
               "" )
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
+              * )
+                echo "Unknown PATCH_KSU mode: $PATCH_KSU" >&2
+                exit 2
+              ;;
             esac
 
-        - name: upload
+        - name: upload build logs and rejects
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: rosemary-build-${{ github.run_number }}-${{ github.run_attempt }}
+            path: |
+              kernel/*.log
+              kernel/*.log.info
+              kernel/*.zip
+              kernel/*.rej
+              kernel/**/*.rej
+              kernel/out/.config
+            if-no-files-found: warn
+            retention-days: 7
+        - name: upload to Telegram
+          if: success()
+          shell: bash
           run: |
+            shopt -s nullglob
             cd kernel
-            if [[ $(ls *.zip) ]]; then
-              for file in *.zip ; do
+            for file in *.zip *.log; do
+              if [[ -f "${file}.info" ]]; then
                 bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
-              done
-            fi
-            if [[ $(ls *.log) ]]; then
-              for file in *.log ; do
-                if [ -e "${file}.info" ]; then
-                  bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
-                fi
-              done
-            fi
+              fi
+            done
         - name: if it fails
           if: ${{ failure() }}
           run: |
