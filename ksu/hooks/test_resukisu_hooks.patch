@@ -80,8 +80,7 @@ diff --git a/fs/open.c b/fs/open.c
 diff --git a/fs/stat.c b/fs/stat.c
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -19,6 +19,17 @@
- #include <linux/uaccess.h>
+@@ -22,2 +22,13 @@
  #include <asm/unistd.h>
  
 +#ifdef CONFIG_KSU_MANUAL_HOOK
@@ -95,9 +94,6 @@ diff --git a/fs/stat.c b/fs/stat.c
 +#endif
 +#endif
 +
- /**
-  * generic_fillattr - Fill in the basic attributes from the inode struct
-  * @inode: Inode to use as the source
 @@ -360,6 +371,10 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
  	struct kstat stat;
  	int error;
