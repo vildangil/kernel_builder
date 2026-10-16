@@ -72,6 +72,11 @@ def main():
         stop = source.find("\nSYSCALL_DEFINE", start + len(symbol))
         if stop < 0:
             stop = len(source)
+        else:
+            # Include the newline immediately before the next native
+            # syscall.  Patch hunks for the preceding function may
+            # include that final blank line as required context.
+            stop += 1
         function = source[start:stop]
         old = "".join(line[1:] for line in lines if line[0] in " -")
         new = "".join(line[1:] for line in lines if line[0] in " +")
