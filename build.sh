@@ -43,7 +43,7 @@ pack() {
 for toolchain in $1; do
 
   [[ -f "${outside}/toolchains/${toolchain}.sh" ]] || { echo "Unknown toolchain: ${toolchain}" >&2; exit 2; }
-  bash -x "${outside}/toolchains/${toolchain}.sh" setup
+  bash -e -o pipefail -x "${outside}/toolchains/${toolchain}.sh" setup
 
   BUILD_START=$(date +"%s")
   export CUR_TOOLCHAIN="${toolchain}"
@@ -51,7 +51,7 @@ for toolchain in $1; do
   # Some toolchain scripts pipe make into tee and lose make\x27s exit status.
   # Do not mistake an image left from an older build for a fresh success.
   rm -f "${out_image}" "${toolchain}.log"
-  bash -x "${outside}/toolchains/${toolchain}.sh" build "${defconfig}" || exit 1
+  bash -e -o pipefail -x "${outside}/toolchains/${toolchain}.sh" build "${defconfig}" || exit 1
 
   if [ ! -s "${out_image}" ] || [ ! -s "${out_dtb}" ]; then
     echo "Build failed: missing/empty Image.gz or dtb for ${toolchain}" >&2
