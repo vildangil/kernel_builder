@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e -o pipefail
 
 maindir="$(pwd)"
 outside="${maindir}/.."

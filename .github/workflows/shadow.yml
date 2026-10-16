@@ -1,6 +1,9 @@
 name: Build shadow branch
 
 on:
+  push:
+    branches:
+      - fix/rosemary-build-bakasu-droidspaces
   workflow_dispatch:
     inputs:
       COMPILER:
@@ -43,35 +46,53 @@ on:
         description: 'if you know you know'
         required: true
         default: 'fedora:40'
+      BORE:
+        description: 'enable BORE 4.2.4 scheduler on Linux 4.14 (experimental)'
+        type: boolean
+        required: true
+        default: true
+      MTK_CONNECTIVITY:
+        description: 'restore in-tree MT6785 WMT/WLAN drivers from rosemary-s'
+        type: boolean
+        required: true
+        default: true
+      DROIDSPACES:
+        description: 'enable DroidSpaces namespace/cgroup support (non-GKI)'
+        type: boolean
+        required: true
+        default: true
 
 env:
   BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
   CHAT_ID: ${{ secrets.CHAT_ID }}
-  REPO: ${{ inputs.KREPO }}
+  REPO: ${{ inputs.KREPO || 'https://github.com/vildangil/android_kernel_xiaomi_evolution' }}
   RUN_NUM: ${{ github.run_number }}_${{ github.run_attempt }}
-  KERNEL_BRANCH: ${{ inputs.KBRANCH }}
+  KERNEL_BRANCH: ${{ inputs.KBRANCH || 'shadow' }}
   NOTE: ${{ inputs.NOTES }}
-  COMPILERS: ${{ inputs.COMPILER }}
-  PATCH_KSU: ${{ inputs.KSU }}
+  COMPILERS: ${{ inputs.COMPILER || 'AOSP-Clang-11' }}
+  PATCH_KSU: ${{ github.event_name == 'push' && 'susfs' || inputs.KSU }}
+  DROIDSPACES: ${{ github.event_name == 'push' && 'true' || inputs.DROIDSPACES }}
+  MTK_CONNECTIVITY: ${{ github.event_name == 'push' && 'true' || inputs.MTK_CONNECTIVITY }}
+  BORE: ${{ github.event_name == 'push' && 'true' || inputs.BORE }}
   SUFFIX: ${{ inputs.SUFFIX }}
-  zipper_repo: ${{ inputs.ZREPO }}
-  zipper_branch: ${{ inputs.ZBRANCH }}
+  zipper_repo: ${{ inputs.ZREPO || 'https://github.com/vildangil/BlackSide_Kernel_AnyKernel3' }}
+  zipper_branch: ${{ inputs.ZBRANCH || 'rosemary' }}
   TZ: Asia/Ho_Chi_Minh
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ${{ inputs.CONTAINER }}
+      image: ${{ inputs.CONTAINER || 'fedora:40' }}
 
     steps:
         - name: checkout
-          uses: actions/checkout@master
+          uses: actions/checkout@v4
         - name: why
           run: |
             echo WORKFLOW_START=$(date +"%s") >> $GITHUB_ENV
-            ALT_RECIPENT=${{ inputs.TG_RECIPENT }}
-            if [ ! -z $ALT_RECIPENT ]; then
+            ALT_RECIPENT="${{ inputs.TG_RECIPENT }}"
+            if [ -n "$ALT_RECIPENT" ]; then
               echo CHAT_ID="$ALT_RECIPENT" >> $GITHUB_ENV
             fi
         - name: start of workflow
@@ -100,13 +121,36 @@ jobs:
               bash tg_utils.sh msg "gh $RUN_NUM: cloning kernel source%nlgh $RUN_NUM: repo: $REPO%nlgh $RUN_NUM: branch: $KERNEL_BRANCH"
             fi
             git clone --depth=1 --single-branch $REPO -b $KERNEL_BRANCH kernel
+        - name: restore MT6785 WMT/WLAN connectivity drivers
+          if: ${{ inputs.MTK_CONNECTIVITY || github.event_name == 'push' }}
+          shell: bash
+          run: |
+            set -euo pipefail
+            cd kernel
+            bash ../configs/restore-rosemary-connectivity.sh
+        - name: enable DroidSpaces kernel features
+          if: ${{ inputs.DROIDSPACES || github.event_name == 'push' }}
+          shell: bash
+          run: |
+            set -euo pipefail
+            cd kernel
+            bash ../configs/enable-droidspaces.sh
+        - name: port BORE 4.2.4 to MTK scheduler
+          if: ${{ inputs.BORE || github.event_name == 'push' }}
+          shell: bash
+          run: |
+            set -euo pipefail
+            cd kernel
+            python3 ../ksu/bore/port_shadow_bore.py ../ksu/bore/bore-4.14-4.2.4-reference.patch
         - name: print kernel info
           run: |
             cd kernel
             source ../env
             bash ../tg_utils.sh msg "gh $RUN_NUM: kernel name: ${kernel_name}%nlgh $RUN_NUM: kernel ver: ${kernel_ver}%nlgh $RUN_NUM: kernel head commit: ${kernel_head}%nlgh $RUN_NUM: defconfig: ${defconfig}"
         - name: run compilation scripts
+          shell: bash
           run: |
+            set -euo pipefail
             cd kernel
             case $PATCH_KSU in
               "both" )
@@ -118,38 +162,52 @@ jobs:
                 bash ../build.sh "$COMPILERS"
               ;;
               "ksu" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: ReSukiSU patching enabled, patching"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: BakaSU patching enabled, patching"
                 bash ../ksu/ksu.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
               "susfs" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: ReSukiSU and susfs patching enabled, patching"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: BakaSU and susfs patching enabled, patching"
                 bash ../ksu/susfs.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
-                bash ../build.sh "$COMPILERS" || true
+                bash ../build.sh "$COMPILERS"
               ;;
               "" )
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
+              * )
+                echo "Unknown PATCH_KSU mode: $PATCH_KSU" >&2
+                exit 2
+              ;;
             esac
 
-        - name: upload
+        - name: upload build logs and rejects
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: rosemary-build-${{ github.run_number }}-${{ github.run_attempt }}
+            path: |
+              kernel/*.log
+              kernel/*.log.info
+              kernel/*.zip
+              kernel/*.rej
+              kernel/**/*.rej
+              kernel/out/.config
+            if-no-files-found: warn
+            retention-days: 7
+        - name: upload to Telegram
+          if: success()
+          shell: bash
           run: |
+            shopt -s nullglob
             cd kernel
-            if [[ $(ls *.zip) ]]; then
-              for file in *.zip ; do
+            for file in *.zip *.log; do
+              if [[ -f "${file}.info" ]]; then
                 bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
-              done
-            fi
-            if [[ $(ls *.log) ]]; then
-              for file in *.log ; do
-                if [ -e "${file}.info" ]; then
-                  bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
-                fi
-              done
-            fi
+              fi
+            done
         - name: if it fails
           if: ${{ failure() }}
           run: |
