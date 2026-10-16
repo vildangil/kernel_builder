@@ -29,16 +29,24 @@ https://github.com/Baka-SU/BakaSU/blob/main/kernel/setup.sh
 **not verified by a kernel build**. Manual syscall/input hook backport to
 4.14 is still required; the Rosemary hook patch may not satisfy current BakaSU.
 
-## SUSFS 2.3.0 -- NOT FIXED
+## SUSFS 2.3.0 -- SOURCE PORT STAGED; BUILD UNVERIFIED
 
-Previously the build indiscriminately applied both SUSFS `*.patch` files.
-The new script selects only one candidate
-(`ksu/sus/test-susfs.patch`, overridable via `SUSFS_PATCH`), performs
-`git apply --check`, and stops on any reject.
+The latest failed run (38863218802, 2026-10-16) stops at
+`git apply --check` on `fs/notify/fdinfo.c`,
+`fs/proc/task_mmu.c`, and `mm/memory.c`.
 
-The candidate still requires an audited source-level port to Linux 4.14.186.
-Original `ksu/sus/susfs-v2.3.0.txt` and older patch remain for reference,
-but are **not** blindly applied.
+The new `ksu/sus/port_shadow_susfs.py` preserves the original SUSFS 2.3.0
+patch for compatible files, but ports these three files to shadow's procfs
+layout with strict source assertions. The port retains the vendor inotify
+mask/ignored_mask reporting, adapts fanotify's callback signature,
+`show_map_vma` / `smaps` / `smaps_rollup`, and applies the
+SUS_MAP access checks to memory.c. The script refuses to change files when
+the known vendor source context is absent. It is not intended for arbitrary
+Linux 4.14 trees.
+
+This is a *source adaptation*, not proof of successful compilation or
+working root hiding. Audit BakaSU/SUSFS compatibility and test on the
+device before considering it stable.
 
 ## DroidSpaces -- CONFIGURATION PREPARED
 
@@ -55,30 +63,28 @@ Upstream patch 01 targets `net/netfilter/xt_qtaguid.c`, which is absent from
 the target kernel; that patch is therefore not applied here. DroidSpaces
 container startup and network behavior **require on-device verification**.
 
-## BORE -- NOT PORTED
+## BORE 4.2.4 -- SOURCE PORT STAGED; BUILD UNVERIFIED
 
-An older Android-specific BORE port targeting a Linux 4.14 derivative exists:
+`ksu/bore/bore-4.14-4.2.4-reference.patch` is copied from the existing
+Android 4.14 BORE port:
 https://github.com/FlopKernel-Series/flop_trinket-mi_kernel/commit/e8d9c93710c2c8166b72631965ef67fbfa5b62ce
 
-It modifies at least:
-- `include/linux/sched.h` and `include/linux/sched/task.h`
-- `init/Kconfig` and `kernel/fork.c`
-- `kernel/sched/core.c`, `kernel/sched/debug.c`, `kernel/sched/fair.c`
-- `kernel/sysctl.c`
-
-Compared against Rosemary's 4.14.186 `shadow` sources, many hunks differ
-(particularly `kernel/sched/fair.c`). Porting those scheduling invariants
-requires a deliberate rebase plus boot/latency testing. This branch does NOT
-enable `CONFIG_SCHED_BORE` or pretend the port is working.
+`ksu/bore/port_shadow_bore.py` applies matching upstream hunks and adapts
+MTK HMP/WALT-specific divergences in the sched_entity layout, fork path,
+CFS tunables, and wakeup enqueue path. A workflow BORE toggle applies
+the port **before** compiling (default enabled on the experimental branch).
+BORE's scheduler code and sysctls have not yet passed CI or boot tests.
+Tuning and potential regressions must be measured before merging.
 
 ## How to validate
 
 Run the workflow from this feature branch using KREPO / KBRANCH defaults:
-1. Begin with `KSU` empty and `DROIDSPACES=false` to get a clean baseline.
+1. Begin with `KSU` empty, `DROIDSPACES=false`, and `BORE=false` to get a clean baseline.
 2. Next enable `DROIDSPACES=true`; inspect `out/.config` and kernel ZIP.
 3. Run `KSU=ksu` to validate BakaSU and manual hooks.
 4. Only after rebasing SUSFS's rejected hunks, run `KSU=susfs`.
-5. Port BORE separately and compare performance without introducing regressions.
+5. Enable `BORE=true` with `KSU=susfs` only after independent KSU/SUSFS testing.
+6. Record build output, boot stability, root hiding, and latency/regression results.
 
 **Do not flash kernel artifacts unless the CI build actually produced a
 non-empty Image.gz and dtb and kernel/boot compatibility is verified.**
