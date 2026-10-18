@@ -58,6 +58,16 @@ for toolchain in $1; do
     exit 1
   fi
 
+  if [[ "${MTK_CONNECTIVITY:-false}" == "true" ]]; then
+    # Prevent another "successful" kernel ZIP that silently omits /dev/stpbt.
+    for symbol in MTK_COMBO MTK_COMBO_CHIP_CONSYS_6785 MTK_COMBO_WIFI MTK_COMBO_BT; do
+      if ! grep -qx "CONFIG_${symbol}=y" "${maindir}/out/.config"; then
+        echo "Connectivity build error: CONFIG_${symbol}=y absent from out/.config" >&2
+        exit 1
+      fi
+    done
+  fi
+
   if [[ "${DROIDSPACES:-false}" == "true" ]]; then
     bash "${outside}/configs/validate-droidspaces.sh" "${maindir}/out/.config"
   fi
