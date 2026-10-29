@@ -68,6 +68,33 @@ for toolchain in $1; do
     done
   fi
 
+  # An Android boot and a running ksud do not prove that su can be granted.
+  # Do not package an image if olddefconfig silently chose the wrong hook mode.
+  case "${PATCH_KSU:-}" in
+    susfs)
+      for symbol in KSU KSU_SUSFS; do
+        grep -qx "CONFIG_${symbol}=y" "${maindir}/out/.config" || {
+          echo "BakaSU build error: CONFIG_${symbol}=y missing from out/.config" >&2; exit 1;
+        }
+      done
+      if grep -qx 'CONFIG_KSU_MANUAL_HOOK=y' "${maindir}/out/.config"; then
+        echo "BakaSU build error: manual and SUSFS hook modes conflict" >&2; exit 1
+      fi
+      echo "Validated BakaSU SUSFS inline hook mode"
+      ;;
+    ksu)
+      for symbol in KSU KSU_MANUAL_HOOK; do
+        grep -qx "CONFIG_${symbol}=y" "${maindir}/out/.config" || {
+          echo "BakaSU build error: CONFIG_${symbol}=y missing from out/.config" >&2; exit 1;
+        }
+      done
+      if grep -qx 'CONFIG_KSU_SUSFS=y' "${maindir}/out/.config"; then
+        echo "BakaSU build error: SUSFS and manual hook modes conflict" >&2; exit 1
+      fi
+      echo "Validated BakaSU manual hook mode"
+      ;;
+  esac
+
   if [[ "${DROIDSPACES:-false}" == "true" ]]; then
     bash "${outside}/configs/validate-droidspaces.sh" "${maindir}/out/.config"
   fi

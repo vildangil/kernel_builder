@@ -2,6 +2,7 @@
 set -euo pipefail
 outside="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bash "$outside/ksu/setup_bakasu.sh"
+bash "$outside/configs/select-bakasu-hooks.sh" susfs
 # Apply one SUSFS port only. The previous wildcard also applied an
 # incompatible legacy port and silently continued after .rej files.
 susfs_patch="${SUSFS_PATCH:-$outside/ksu/sus/test-susfs.patch}"
@@ -22,5 +23,8 @@ fi
 git apply "${susfs_excludes[@]}" "$susfs_patch"
 python3 "$outside/ksu/sus/port_shadow_susfs.py" "$susfs_patch"
 bash "$outside/ksu/apply_hooks.sh"
+# Older 4.14 stat/faccessat syscalls take userspace path pointers rather than
+# struct filename **. Activate matching hooks in SUSFS mode for su detection.
+python3 "$outside/ksu/hooks/port_bakasu_sucompat_414.py"
 version="$(git -C KernelSU rev-parse --short HEAD)"
 printf '\nIncludes BakaSU (%s) + SUSFS (4.14 port)\n' "$version" >> banner_append

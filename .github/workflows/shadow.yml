@@ -34,6 +34,10 @@ on:
         description: 'zipper branch'
         required: true
         default: 'rosemary'
+      KSU_REF:
+        description: 'BakaSU git branch, tag, or commit (main follows the newest upstream)'
+        required: false
+        default: 'main'
       KSU:
         description: 'if dont want ksu then leave blank'
         required: false
@@ -70,6 +74,7 @@ env:
   KERNEL_BRANCH: ${{ inputs.KBRANCH || 'shadow' }}
   NOTE: ${{ inputs.NOTES }}
   COMPILERS: ${{ inputs.COMPILER || 'AOSP-Clang-11' }}
+  KSU_REF: ${{ inputs.KSU_REF || 'main' }}
   PATCH_KSU: ${{ github.event_name == 'push' && 'susfs' || inputs.KSU }}
   DROIDSPACES: ${{ github.event_name == 'push' && 'true' || inputs.DROIDSPACES }}
   MTK_CONNECTIVITY: ${{ github.event_name == 'push' && 'true' || inputs.MTK_CONNECTIVITY }}
