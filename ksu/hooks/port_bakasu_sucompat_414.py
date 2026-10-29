@@ -33,6 +33,21 @@ def main():
         src = replace_exact(src, before, after, f"BakaSU {symbol}")
     su.write_text(src)
 
+    # sucompat.h declares the same functions using the newer struct filename
+    # signatures whenever SUSFS is selected. Match its ABI to the C file on
+    # Linux 4.14 or Clang rejects both definitions with conflicting types.
+    header = Path("KernelSU/kernel/feature/sucompat.h")
+    header_src = header.read_text()
+    header_src = replace_exact(
+        header_src,
+        "#ifdef CONFIG_KSU_SUSFS\\nint ksu_handle_faccessat(",
+        "#if defined(CONFIG_KSU_SUSFS) && "
+        "LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\\n"
+        "int ksu_handle_faccessat(",
+        "BakaSU sucompat.h signatures",
+    )
+    header.write_text(header_src)
+
     manual_guard = "#ifdef CONFIG_KSU_MANUAL_HOOK"
     shared_guard = "#if defined(CONFIG_KSU_MANUAL_HOOK) || defined(CONFIG_KSU_SUSFS)"
     op = Path("fs/open.c")
