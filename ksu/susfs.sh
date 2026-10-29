@@ -2,6 +2,7 @@
 set -euo pipefail
 outside="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bash "$outside/ksu/setup_bakasu.sh"
+bash "$outside/configs/select-bakasu-hooks.sh" susfs
 # Apply one SUSFS port only. The previous wildcard also applied an
 # incompatible legacy port and silently continued after .rej files.
 susfs_patch="${SUSFS_PATCH:-$outside/ksu/sus/test-susfs.patch}"
