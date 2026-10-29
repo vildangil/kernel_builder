@@ -23,5 +23,8 @@ fi
 git apply "${susfs_excludes[@]}" "$susfs_patch"
 python3 "$outside/ksu/sus/port_shadow_susfs.py" "$susfs_patch"
 bash "$outside/ksu/apply_hooks.sh"
+# Older 4.14 stat/faccessat syscalls take userspace path pointers rather than
+# struct filename **. Activate matching hooks in SUSFS mode for su detection.
+python3 "$outside/ksu/hooks/port_bakasu_sucompat_414.py"
 version="$(git -C KernelSU rev-parse --short HEAD)"
 printf '\nIncludes BakaSU (%s) + SUSFS (4.14 port)\n' "$version" >> banner_append
