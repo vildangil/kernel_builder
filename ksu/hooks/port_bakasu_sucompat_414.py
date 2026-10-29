@@ -40,9 +40,9 @@ def main():
     header_src = header.read_text()
     header_src = replace_exact(
         header_src,
-        "#ifdef CONFIG_KSU_SUSFS\\nint ksu_handle_faccessat(",
+        "#ifdef CONFIG_KSU_SUSFS\nint ksu_handle_faccessat(",
         "#if defined(CONFIG_KSU_SUSFS) && "
-        "LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\\n"
+        "LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n"
         "int ksu_handle_faccessat(",
         "BakaSU sucompat.h signatures",
     )
