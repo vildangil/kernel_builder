@@ -76,6 +76,38 @@ the port **before** compiling (default enabled on the experimental branch).
 BORE's scheduler code and sysctls have not yet passed CI or boot tests.
 Tuning and potential regressions must be measured before merging.
 
+
+## BakaSU root/su regression investigation (2026-10-29)
+
+GitHub Actions run 40757808513 on 2026-10-28 built BakaSU v4.2.0-rc3
+(commit d5e9e025) and selected **SuSFS Inline hook**. The upstream setup
+script failed to checkout missing `sync-susfs` and silently continued on
+`main`. Build also warned about `CONFIG_KSU_MANUAL_HOOK` guards remaining
+in `fs/open.c` and `fs/stat.c`, despite SUSFS hook mode being active.
+Those guards compile out the su existence checks (faccessat/newfstatat)
+which root-checking apps often use. SUSFS init success in logcat confirms
+neither these checks nor the actual su credential transition.
+
+This experimental branch:
+- Defaults to BakaSU main and verifies the requested checkout is real
+  (the revision can be pinned with the `KSU_REF` workflow input).
+- Selects exactly one hook mode before compiling and checks `out/.config`
+  before packaging a ZIP.
+- For Linux 4.14 only, compiles the userspace-path variant of BakaSU's
+  sucompat stat/faccessat handlers and enables their corresponding 4.14
+  syscall call sites in SUSFS mode. The incompatible struct-filename-pointer
+  interface is retained for newer kernels.
+- Preserves Bluetooth connectivity fix from the base branch.
+
+**Status: source patch staged and inspected, no successful build or on-device
+root test for this new branch.** Make a baseline run with BORE=false and
+DROIDSPACES=false, KSU=susfs, MTK_CONNECTIVITY=true. Ensure the build reports
+`Validated BakaSU SUSFS inline hook mode`; then on a device where the
+test application is explicitly allowed by BakaSU, run `su -c id` from a
+terminal and verify `uid=0(root)`. Also check apps using stat/access probes.
+Keep a working previous boot/kernel ZIP for rollback. Never assume
+manager grant alone proves usable root.
+
 ## How to validate
 
 Run the workflow from this feature branch using KREPO / KBRANCH defaults:
